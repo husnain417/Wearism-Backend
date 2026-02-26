@@ -7,8 +7,10 @@
 ## Table of Contents
 1. [General Integration Guidelines](#1-general-integration-guidelines)
 2. [Authentication Module (Phase 1)](#2-authentication-module)
-   - [Signup](#post-authsignup)
-   - [Login](#post-authlogin)
+3. [User Profile Module (Phase 2)](#3-user-profile-module)
+   - [Get Profile](#get-userprofile)
+   - [Update Profile](#patch-userprofile)
+   - [Upload Avatar](#post-userprofileavatar)
    - [Refresh Token](#post-authrefresh)
    - [Forgot Password](#post-authforgot-password)
    - [Logout](#post-authlogout)
@@ -228,3 +230,90 @@ Fulfills **GDPR Article 17 (Right to Erasure)**. Performs a secure deletion of t
 ```
 
 **Frontend Integration Note:** Calling this should immediately clear the user's local tokens and route them back to the welcome/login screen.
+
+---
+
+## 3. User Profile Module
+
+### `GET /user/profile`
+**Auth Required:** Yes (`Authorization: Bearer <token>`)
+
+Retrieves the authenticated user's profile and returns a dynamically calculated completion score.
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "profile": {
+    "id": "uuid-here",
+    "email": "user@example.com",
+    "full_name": null,
+    "avatar_url": null,
+    "gender": null,
+    ... // see update schema for fields
+  },
+  "completion_score": 14 
+}
+```
+*Note: The completion score maxes out at 100 and is intended to be used on the frontend to drive a progress bar encouraging users to fill out their profile.*
+
+---
+
+### `PATCH /user/profile`
+**Auth Required:** Yes (`Authorization: Bearer <token>`)
+
+Perform a partial update on the user's profile. Strict enum validation is mapped exactly to GDPR Data Minimisation standards. All fields are optional.
+
+**Request Body (Example):**
+```json
+{
+  "full_name": "Test User",
+  "gender": "prefer_not_to_say",
+  "age_range": "25-34",
+  "height_cm": 180,
+  "weight_kg": 75.5,
+  "body_type": "athletic",
+  "skin_tone": "olive"
+}
+```
+
+**Validations:**
+1. `gender`: `['male', 'female', 'non_binary', 'prefer_not_to_say']`
+2. `age_range`: `['13-17', '18-24', '25-34', '35-44', '45-54', '55+']`
+3. `height_cm`: 100 - 250
+4. `weight_kg`: 30 - 300
+5. `body_type`: `['slim', 'athletic', 'average', 'curvy', 'plus_size']`
+6. `skin_tone`: `['fair', 'light', 'medium', 'olive', 'brown', 'dark']`
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Profile updated successfully.",
+  "profile": { ...updatedProfileData }
+}
+```
+
+---
+
+### `POST /user/profile/avatar`
+**Auth Required:** Yes (`Authorization: Bearer <token>`)
+
+Upload a raw profile image directly from the mobile phone buffer. The backend compresses this image entirely automatically via `sharp` and stores a < 50kb `.webp` variant, returning a 365-day signed Supabase Storage URL.
+
+**Headers:**
+```http
+Content-Type: multipart/form-data
+```
+**Form Data Payload:**
+- `file`: The image file (JPEG, PNG, WebP, HEIC). Max size 5MB.
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Avatar uploaded successfully.",
+  "avatar_url": "https://<supabase-id>.supabase.co/storage/v1/object/sign/avatars/..."
+}
+```
+*Note: The endpoint uses `upsert: true`. You do not need to delete old avatars—the new upload will automatically overwrite them entirely in storage and sync the URL to the profile DB.*

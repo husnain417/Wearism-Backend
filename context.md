@@ -67,6 +67,14 @@ Every feature module inside `src/modules/` adheres to a strict 3-4 file pattern:
 - [x] Implemented Right to Access (GDPR Article 15) `me/data` endpoint.
 - [x] Validated logic via Jest integration tests and configured the test runner.
 
+**Phase 2: User Profile & Image Processing - COMPLETED**
+- [x] Created `imageProcessor.js` using `sharp` for avatar scaling and heavy compression.
+- [x] Implemented logic to strip undefined keys from partial update schemas ensuring GDPR data minimisation.
+- [x] Configured Supabase to auto-evaluate profile completion % via Postgres Function (`004_profile_completion.sql`).
+- [x] Configured Fastify `app.js` with `fastifyMultipart` 5MB bounds for image uploads.
+- [x] Ensured GDPR log redaction for sensitive physical data using `pino` redact configurations.
+- [x] Added `deleteAvatar` to Auth Service `deleteAccount` sequence preventing orphaned images in bucket.
+
 ## 5. Coding Guidelines for AI Agents
 1. **Always use ES Modules (`import`/`export`).** Never use `require`.
 2. **Never expose the `service_role` key.** Only use `src/config/supabase.js` for DB interactions on the backend.

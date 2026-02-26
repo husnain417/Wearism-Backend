@@ -1,4 +1,5 @@
 import { supabase } from '../../config/supabase.js';
+import { userService } from '../user/user.service.js';
 
 export const authService = {
     // ── SIGNUP ──────────────────────────────────────────
@@ -98,6 +99,9 @@ export const authService = {
             .from('profiles')
             .update({ deleted_at: new Date().toISOString(), data_deletion_requested: true })
             .eq('id', userId);
+
+        // Delete Avatar from storage
+        await userService.deleteAvatar(userId);
 
         // Hard delete from auth (cascades to profiles via FK)
         const { error } = await supabase.auth.admin.deleteUser(userId);
