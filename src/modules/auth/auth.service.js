@@ -79,6 +79,18 @@ export const authService = {
         return data.user;
     },
 
+    // ── GET USER DATA (GDPR Right to Access) ──────────────
+    async getUserData(userId) {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
     // ── DELETE ACCOUNT (GDPR Right to Erasure) ────────────
     async deleteAccount(userId) {
         // Soft delete profile first
