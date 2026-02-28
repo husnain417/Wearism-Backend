@@ -8,7 +8,10 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import { envSchema } from './config/env.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
+import { wardrobeRoutes } from './modules/wardrobe/wardrobe.routes.js';
+import { outfitRoutes } from './modules/wardrobe/outfit.routes.js';
 import fastifyMultipart from '@fastify/multipart';
+import { startClassificationWorker } from './workers/classificationWorker.js';
 
 export async function buildApp() {
     const app = Fastify({
@@ -55,6 +58,8 @@ export async function buildApp() {
     // Register feature modules
     await app.register(authRoutes, { prefix: '/auth' });
     await app.register(userRoutes, { prefix: '/user' });
+    await app.register(wardrobeRoutes, { prefix: '/wardrobe' });
+    await app.register(outfitRoutes, { prefix: '/wardrobe/outfits' });
 
     // Global error handler
     app.setErrorHandler((error, request, reply) => {
@@ -67,6 +72,11 @@ export async function buildApp() {
 
     // Health check route
     app.get('/health', async () => ({ status: 'ok' }));
+
+    // Start background workers (skip in test environment)
+    if (process.env.NODE_ENV !== 'test') {
+        startClassificationWorker(app.log);
+    }
 
     return app;
 }

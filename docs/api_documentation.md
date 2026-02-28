@@ -8,6 +8,8 @@
 1. [General Integration Guidelines](#1-general-integration-guidelines)
 2. [Authentication Module (Phase 1)](#2-authentication-module)
 3. [User Profile Module (Phase 2)](#3-user-profile-module)
+4. [Wardrobe Module (Phase 3)](#4-wardrobe-module)
+5. [Outfits Module (Phase 3)](#5-outfits-module)
    - [Get Profile](#get-userprofile)
    - [Update Profile](#patch-userprofile)
    - [Upload Avatar](#post-userprofileavatar)
@@ -317,3 +319,162 @@ Content-Type: multipart/form-data
 }
 ```
 *Note: The endpoint uses `upsert: true`. You do not need to delete old avatars—the new upload will automatically overwrite them entirely in storage and sync the URL to the profile DB.*
+
+---
+
+## 4. Wardrobe Module
+
+### `POST /wardrobe/items`
+**Auth Required:** Yes  
+**Rate Limit:** 30 requests per 10 minutes
+
+Creates a new wardrobe item and queues an AI clothing classification job.
+
+**Request Body:**
+```json
+{
+  "item_id": "550e8400-e29b-41d4-a716-446655440000",
+  "image_path": "<user_id>/550e8400.webp",
+  "name": "Blue Denim Jacket",
+  "brand": "Levi's",
+  "category": "outerwear",
+  "condition": "good"
+}
+```
+*`item_id` (UUID) and `image_path` are required. `category` enum: tops, bottoms, dresses, outerwear, footwear, accessories, activewear, swimwear, underwear, sleepwear.*
+
+**Success Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Item added. AI classification in progress.",
+  "item": { ...itemData },
+  "ai_status": "pending"
+}
+```
+**Security:** `image_path` must start with the authenticated user's ID. Max 500 items per user.
+
+---
+
+### `GET /wardrobe/items`
+**Auth Required:** Yes
+
+Returns a paginated, filterable list of wardrobe items.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `category` | string | — | Filter by category |
+| `season` | string | — | Filter by season |
+| `is_favourite` | boolean | — | Filter favourites |
+| `is_for_sale` | boolean | — | Filter items for sale |
+| `page` | integer | 1 | Page number |
+| `limit` | integer | 20 | Items per page (max 50) |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "items": [ ...items ],
+  "pagination": { "total": 42, "page": 1, "limit": 20, "total_pages": 3 }
+}
+```
+
+---
+
+### `GET /wardrobe/items/:id`
+**Auth Required:** Yes
+
+Returns a single wardrobe item. Returns 404 if item is from another user (no information leak).
+
+---
+
+### `PATCH /wardrobe/items/:id`
+**Auth Required:** Yes
+
+Partial update. Accepts: `name`, `brand`, `category`, `subcategory`, `colors` (array), `pattern`, `fit` (slim/regular/relaxed/oversized), `season`, `condition`, `purchase_price`, `is_favourite`, `is_for_sale`, `resale_price`.
+
+---
+
+### `DELETE /wardrobe/items/:id`
+**Auth Required:** Yes
+
+Soft-deletes the item and removes the image from Supabase Storage.
+
+---
+
+### `POST /wardrobe/items/:id/worn`
+**Auth Required:** Yes
+
+Increments `times_worn` and records `last_worn_at`. Returns `{ times_worn, last_worn_at }`.
+
+---
+
+### `GET /wardrobe/items/:id/ai-status`
+**Auth Required:** Yes
+
+Poll this endpoint to check AI classification progress.
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "ai": {
+    "status": "completed",
+    "result": { "category": "tops", "colors": ["blue"], ... },
+    "processing_time_ms": 1234
+  }
+}
+```
+*Possible `status` values: `pending`, `processing`, `completed`, `failed`.*
+
+---
+
+## 5. Outfits Module
+
+### `POST /wardrobe/outfits`
+**Auth Required:** Yes  
+**Rate Limit:** 20 requests per 10 minutes
+
+Creates an outfit from wardrobe items and queues an AI rating job.
+
+**Request Body:**
+```json
+{
+  "name": "Monday Office Look",
+  "occasion": "business_casual",
+  "item_ids": ["<item_uuid_1>", "<item_uuid_2>"],
+  "status": "saved"
+}
+```
+*`item_ids` required (1–20 UUIDs). `occasion` enum: casual, business_casual, formal, athletic, outdoor, beach, evening, date_night. `status` enum: draft, saved, published.*
+
+**Security:** All `item_ids` must belong to the authenticated user. Returns 403 otherwise.
+
+---
+
+### `GET /wardrobe/outfits`
+**Auth Required:** Yes
+
+Paginated list with optional `occasion` and `status` filters.
+
+---
+
+### `GET /wardrobe/outfits/:id`
+**Auth Required:** Yes
+
+Returns outfit with nested wardrobe items (id, name, image_url, category, subcategory, colors).
+
+---
+
+### `PATCH /wardrobe/outfits/:id`
+**Auth Required:** Yes
+
+Update outfit metadata and/or replace item list. If `item_ids` provided, all must belong to the user.
+
+---
+
+### `DELETE /wardrobe/outfits/:id`
+**Auth Required:** Yes
+
+Soft-deletes the outfit. Junction records cascade-deleted via FK.

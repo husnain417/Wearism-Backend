@@ -1,5 +1,6 @@
 import { supabase } from '../../config/supabase.js';
 import { userService } from '../user/user.service.js';
+import { wardrobeService } from '../wardrobe/wardrobe.service.js';
 
 export const authService = {
     // ── SIGNUP ──────────────────────────────────────────
@@ -102,6 +103,9 @@ export const authService = {
 
         // Delete Avatar from storage
         await userService.deleteAvatar(userId);
+
+        // Delete all wardrobe images from storage
+        await wardrobeService.deleteAllUserItems(userId);
 
         // Hard delete from auth (cascades to profiles via FK)
         const { error } = await supabase.auth.admin.deleteUser(userId);

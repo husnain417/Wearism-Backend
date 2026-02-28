@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wearism — Database ERD</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a26;
+            --border: #2a2a3d;
+            --accent: #6c63ff;
+            --accent2: #ff6584;
+            --accent3: #43e97b;
+            --accent4: #f7971e;
+            --accent5: #12c2e9;
+            --text: #e8e8f0;
+            --muted: #6b6b8a;
+            --pk: #ffd700;
+            --fk: #43e97b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Syne', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(108, 99, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(108, 99, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.92);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            color: var(--accent);
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
+
+        .main {
+            position: relative;
+            z-index: 1;
+            padding: 32px;
+        }
+
+        /* Module sections */
+        .module-label {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .module-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        /* Table cards */
+        .table-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+
+        .table-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent);
+            box-shadow: 0 8px 40px rgba(108, 99, 255, 0.15);
+        }
+
+        .table-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .table-card.auth::before {
+            background: var(--accent5);
+        }
+
+        .table-card.wardrobe::before {
+            background: var(--accent);
+        }
+
+        .table-card.ai::before {
+            background: var(--accent3);
+        }
+
+        .table-card.social::before {
+            background: var(--accent2);
+        }
+
+        .table-card.vendor::before {
+            background: var(--accent4);
+        }
+
+        .table-card.junction::before {
+            background: var(--muted);
+        }
+
+        .table-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .table-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .table-card.auth .table-icon {
+            background: rgba(18, 194, 233, 0.15);
+        }
+
+        .table-card.wardrobe .table-icon {
+            background: rgba(108, 99, 255, 0.15);
+        }
+
+        .table-card.ai .table-icon {
+            background: rgba(67, 233, 123, 0.15);
+        }
+
+        .table-card.social .table-icon {
+            background: rgba(255, 101, 132, 0.15);
+        }
+
+        .table-card.vendor .table-icon {
+            background: rgba(247, 151, 30, 0.15);
+        }
+
+        .table-card.junction .table-icon {
+            background: rgba(107, 107, 138, 0.15);
+        }
+
+        .table-name {
+            font-size: 14px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text);
+        }
+
+        .table-desc {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .row-count {
+            margin-left: auto;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            background: var(--surface2);
+            padding: 3px 8px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .table-body {
+            padding: 8px 0;
+        }
+
+        .col-row {
+            display: flex;
+            align-items: center;
+            padding: 5px 16px;
+            gap: 8px;
+            transition: background 0.15s;
+        }
+
+        .col-row:hover {
+            background: var(--surface2);
+        }
+
+        .col-badge {
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            padding: 2px 5px;
+            border-radius: 3px;
+            flex-shrink: 0;
+            width: 28px;
+            text-align: center;
+        }
+
+        .col-badge.pk {
+            background: rgba(255, 215, 0, 0.15);
+            color: var(--pk);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+
+        .col-badge.fk {
+            background: rgba(67, 233, 123, 0.15);
+            color: var(--fk);
+            border: 1px solid rgba(67, 233, 123, 0.3);
+        }
+
+        .col-badge.col {
+            background: var(--surface2);
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+
+        .col-name {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text);
+            flex: 1;
+        }
+
+        .col-type {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .col-type.uuid {
+            color: #a78bfa;
+        }
+
+        .col-type.text {
+            color: #67e8f9;
+        }
+
+        .col-type.int {
+            color: #86efac;
+        }
+
+        .col-type.bool {
+            color: #fde68a;
+        }
+
+        .col-type.json {
+            color: #f9a8d4;
+        }
+
+        .col-type.ts {
+            color: #cbd5e1;
+        }
+
+        .col-type.enum {
+            color: #fb923c;
+        }
+
+        .col-type.vec {
+            color: #c4b5fd;
+        }
+
+        .col-type.arr {
+            color: #6ee7b7;
+        }
+
+        .col-type.dec {
+            color: #86efac;
+        }
+
+        .col-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 16px;
+            opacity: 0.5;
+        }
+
+        /* Relationship section */
+        .relations-section {
+            margin-top: 8px;
+            padding: 10px 16px;
+            border-top: 1px solid var(--border);
+            background: rgba(108, 99, 255, 0.03);
+        }
+
+        .relations-title {
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .rel-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--muted);
+            padding: 3px 0;
+        }
+
+        .rel-arrow {
+            color: var(--accent3);
+            font-size: 12px;
+        }
+
+        .rel-type {
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        /* Migration order panel */
+        .migration-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 8px;
+        }
+
+        .migration-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .migration-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+        }
+
+        .migration-num {
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .migration-file {
+            color: var(--text);
+        }
+
+        .migration-phase {
+            margin-left: auto;
+            font-size: 9px;
+            color: var(--muted);
+            background: var(--bg);
+            padding: 2px 6px;
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-num {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 900px) {
+            .stats-bar {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .main {
+                padding: 16px;
+            }
+
+            header {
+                padding: 12px 16px;
+            }
+
+            .legend {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <div class="logo">WEAR<span>ISM</span></div>
+            <div class="subtitle">database entity relationship diagram · v1.0 · postgresql (supabase eu-frankfurt)</div>
+        </div>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#ffd700"></div>PK — Primary Key
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#43e97b"></div>FK — Foreign Key
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#6c63ff"></div>Auth + Profile
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#6c63ff;opacity:0.6"></div>Wardrobe
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#43e97b"></div>AI
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#ff6584"></div>Social
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#f7971e"></div>Vendor
+            </div>
+        </div>
+    </header>
+
+    <div class="main">
+
+        <!-- Stats -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="stat-num">18</div>
+                <div class="stat-label">Tables</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">20</div>
+                <div class="stat-label">Migrations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">14</div>
+                <div class="stat-label">Enum Types</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">34</div>
+                <div class="stat-label">Indexes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">28</div>
+                <div class="stat-label">RLS Policies</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num">7</div>
+                <div class="stat-label">Triggers</div>
+            </div>
+        </div>
+
+        <!-- AUTH + PROFILE -->
+        <div class="module-label" style="color:#12c2e9">● Auth + Profile Module</div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr))">
+
+            <div class="table-card auth">
+                <div class="table-header">
+                    <div class="table-icon">🔐</div>
+                    <div>
+                        <div class="table-name">auth.users</div>
+                        <div class="table-desc">Supabase managed — do not modify directly</div>
+                    </div>
+                    <div class="row-count">supabase</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">email</span><span
+                            class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">encrypted_password</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">raw_user_meta_data</span><span class="col-type json">JSONB</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">created_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Referenced by</div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>profiles.id</span><span
+                            class="rel-type">1:1 CASCADE</span></div>
+                </div>
+            </div>
+
+            <div class="table-card auth">
+                <div class="table-header">
+                    <div class="table-icon">👤</div>
+                    <div>
+                        <div class="table-name">public.profiles</div>
+                        <div class="table-desc">User profile + AI attributes + GDPR fields</div>
+                    </div>
+                    <div class="row-count">Phase 1–2</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID → auth.users</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">email</span><span
+                            class="col-type text">TEXT NOT NULL</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">full_name</span><span
+                            class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">avatar_url</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">gender</span><span
+                            class="col-type enum">gender_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">age_range</span><span
+                            class="col-type enum">age_range_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">height_cm</span><span
+                            class="col-type int">INTEGER</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">weight_kg</span><span
+                            class="col-type dec">DECIMAL(5,2)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">body_type</span><span
+                            class="col-type enum">body_type_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">skin_tone</span><span
+                            class="col-type enum">skin_tone_enum</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">gdpr_consent</span><span class="col-type bool">BOOLEAN</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">gdpr_consent_date</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">gdpr_consent_version</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">deleted_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">created_at /
+                            updated_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Has many</div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>wardrobe_items</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>outfits</span><span class="rel-type">1:N
+                            CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>ai_results</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>posts</span><span class="rel-type">1:N
+                            CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>vendor_profiles</span><span
+                            class="rel-type">1:1 CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>orders</span><span class="rel-type">1:N
+                            RESTRICT</span></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- WARDROBE -->
+        <div class="module-label" style="color:#6c63ff">● Wardrobe Module — Phase 3</div>
+        <div class="grid">
+
+            <div class="table-card wardrobe">
+                <div class="table-header">
+                    <div class="table-icon">👕</div>
+                    <div>
+                        <div class="table-name">wardrobe_items</div>
+                        <div class="table-desc">Clothing items with AI classification</div>
+                    </div>
+                    <div class="row-count">Phase 3</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">name</span><span
+                            class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">image_url /
+                            image_path</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">category</span><span
+                            class="col-type enum">clothing_category_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">subcategory</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">colors</span><span
+                            class="col-type arr">TEXT[]</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">pattern</span><span
+                            class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">fit</span><span
+                            class="col-type enum">clothing_fit_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">season</span><span
+                            class="col-type enum">clothing_season_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">occasion</span><span
+                            class="col-type arr">occasion_enum[]</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">brand</span><span
+                            class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">condition</span><span
+                            class="col-type enum">condition_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">is_favourite /
+                            times_worn</span><span class="col-type bool">BOOL / INT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">is_for_sale /
+                            resale_price</span><span class="col-type bool">BOOL / DEC</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">embedding</span><span
+                            class="col-type vec">vector(512)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">deleted_at /
+                            timestamps</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Relations</div>
+                    <div class="rel-item"><span class="rel-arrow">↑</span><span>profiles (owner)</span><span
+                            class="rel-type">N:1</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>outfit_items</span><span
+                            class="rel-type">1:N</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>ai_results</span><span
+                            class="rel-type">1:N SET NULL</span></div>
+                </div>
+            </div>
+
+            <div class="table-card wardrobe">
+                <div class="table-header">
+                    <div class="table-icon">🎨</div>
+                    <div>
+                        <div class="table-name">outfits</div>
+                        <div class="table-desc">Named outfit collections with AI scores</div>
+                    </div>
+                    <div class="row-count">Phase 3</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">name</span><span
+                            class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">occasion</span><span
+                            class="col-type enum">occasion_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">status</span><span
+                            class="col-type enum">outfit_status_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">cover_image_url</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">ai_rating</span><span
+                            class="col-type dec">DECIMAL(3,1)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">ai_color_score</span><span class="col-type dec">DECIMAL(3,1)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">ai_proportion_score</span><span class="col-type dec">DECIMAL(3,1)</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">ai_style_score</span><span class="col-type dec">DECIMAL(3,1)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">ai_feedback</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">deleted_at /
+                            timestamps</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Relations</div>
+                    <div class="rel-item"><span class="rel-arrow">↑</span><span>profiles (owner)</span><span
+                            class="rel-type">N:1</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>outfit_items (junction)</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>posts</span><span class="rel-type">1:N
+                            SET NULL</span></div>
+                </div>
+            </div>
+
+            <div class="table-card junction">
+                <div class="table-header">
+                    <div class="table-icon">🔗</div>
+                    <div>
+                        <div class="table-name">outfit_items</div>
+                        <div class="table-desc">Junction — items ↔ outfits (N:M)</div>
+                    </div>
+                    <div class="row-count">junction</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">outfit_id</span><span class="col-type uuid">→ outfits CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">item_id</span><span
+                            class="col-type uuid">→ wardrobe_items CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">position</span><span
+                            class="col-type int">INTEGER</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">created_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">UNIQUE(outfit_id,
+                            item_id)</span><span class="col-type bool">constraint</span></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- AI -->
+        <div class="module-label" style="color:#43e97b">● AI Module — Phase 4–5</div>
+        <div class="grid">
+
+            <div class="table-card ai">
+                <div class="table-header">
+                    <div class="table-icon">🤖</div>
+                    <div>
+                        <div class="table-name">ai_results</div>
+                        <div class="table-desc">All AI job results — async processing</div>
+                    </div>
+                    <div class="row-count">Phase 4–5</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">wardrobe_item_id</span><span class="col-type uuid">→ wardrobe_items SET
+                            NULL</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">outfit_id</span><span class="col-type uuid">→ outfits SET NULL</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">task_type</span><span
+                            class="col-type enum">ai_task_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">status</span><span
+                            class="col-type enum">ai_status_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">result</span><span
+                            class="col-type json">JSONB</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">processing_time_ms</span><span class="col-type int">INTEGER</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">model_version</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">error_message</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">created_at /
+                            updated_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Task types stored in result JSONB</div>
+                    <div class="rel-item"><span class="rel-arrow">→</span><span>clothing_classification</span></div>
+                    <div class="rel-item"><span class="rel-arrow">→</span><span>outfit_rating</span></div>
+                    <div class="rel-item"><span class="rel-arrow">→</span><span>age_estimation</span></div>
+                    <div class="rel-item"><span class="rel-arrow">→</span><span>height_estimation</span></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- SOCIAL -->
+        <div class="module-label" style="color:#ff6584">● Social Hub Module — Phase 6</div>
+        <div class="grid">
+
+            <div class="table-card social">
+                <div class="table-header">
+                    <div class="table-icon">📸</div>
+                    <div>
+                        <div class="table-name">posts</div>
+                        <div class="table-desc">Social feed posts with outfit sharing</div>
+                    </div>
+                    <div class="row-count">Phase 6</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">outfit_id</span><span class="col-type uuid">→ outfits SET NULL</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">caption</span><span
+                            class="col-type text">TEXT (max 2200)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">image_url /
+                            image_path</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">tags</span><span
+                            class="col-type arr">TEXT[] (GIN indexed)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">status</span><span
+                            class="col-type enum">post_status_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">like_count</span><span class="col-type int">INTEGER (trigger)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">comment_count</span><span class="col-type int">INTEGER (trigger)</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">deleted_at /
+                            timestamps</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Has many</div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>comments</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>post_likes</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                </div>
+            </div>
+
+            <div class="table-card social">
+                <div class="table-header">
+                    <div class="table-icon">💬</div>
+                    <div>
+                        <div class="table-name">comments</div>
+                        <div class="table-desc">Nested comments with reply support</div>
+                    </div>
+                    <div class="row-count">Phase 6</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">post_id</span><span
+                            class="col-type uuid">→ posts CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">parent_id</span><span class="col-type uuid">→ comments CASCADE
+                            (self)</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">content</span><span
+                            class="col-type text">TEXT NOT NULL (max 500)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">deleted_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">created_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+            </div>
+
+            <div class="table-card junction">
+                <div class="table-header">
+                    <div class="table-icon">❤️</div>
+                    <div>
+                        <div class="table-name">post_likes</div>
+                        <div class="table-desc">Junction — users ↔ posts likes (N:M)</div>
+                    </div>
+                    <div class="row-count">junction</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">post_id</span><span
+                            class="col-type uuid">→ posts CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">created_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">UNIQUE(post_id,
+                            user_id)</span><span class="col-type bool">constraint</span></div>
+                </div>
+            </div>
+
+            <div class="table-card junction">
+                <div class="table-header">
+                    <div class="table-icon">➕</div>
+                    <div>
+                        <div class="table-name">follows</div>
+                        <div class="table-desc">Junction — users follow users (N:M self)</div>
+                    </div>
+                    <div class="row-count">junction</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">follower_id</span><span class="col-type uuid">→ profiles CASCADE</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">following_id</span><span class="col-type uuid">→ profiles CASCADE</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">created_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">UNIQUE(follower_id,
+                            following_id)</span><span class="col-type bool">constraint</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">CHECK follower !=
+                            following</span><span class="col-type bool">constraint</span></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- VENDOR -->
+        <div class="module-label" style="color:#f7971e">● Vendor + Marketplace Module — Phase 7</div>
+        <div class="grid">
+
+            <div class="table-card vendor">
+                <div class="table-header">
+                    <div class="table-icon">🏪</div>
+                    <div>
+                        <div class="table-name">vendor_profiles</div>
+                        <div class="table-desc">Extends a user into a vendor</div>
+                    </div>
+                    <div class="row-count">Phase 7</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles CASCADE UNIQUE</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">brand_name</span><span class="col-type text">TEXT NOT NULL</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">brand_logo_url</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">description</span><span class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">status</span><span
+                            class="col-type enum">vendor_status_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">total_sales</span><span class="col-type int">INTEGER</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">created_at /
+                            updated_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Has many</div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>products</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                </div>
+            </div>
+
+            <div class="table-card vendor">
+                <div class="table-header">
+                    <div class="table-icon">📦</div>
+                    <div>
+                        <div class="table-name">products</div>
+                        <div class="table-desc">Vendor listings + resale items</div>
+                    </div>
+                    <div class="row-count">Phase 7</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">vendor_id</span><span class="col-type uuid">→ vendor_profiles
+                            CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">wardrobe_item_id</span><span class="col-type uuid">→ wardrobe_items SET
+                            NULL</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">listing_type</span><span class="col-type enum">listing_type_enum</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">name</span><span
+                            class="col-type text">TEXT NOT NULL (trgm indexed)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">category</span><span
+                            class="col-type enum">clothing_category_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">colors /
+                            sizes</span><span class="col-type arr">TEXT[]</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">price</span><span
+                            class="col-type dec">DECIMAL(10,2) NOT NULL</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">stock_quantity</span><span class="col-type int">INTEGER</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">image_urls /
+                            image_paths</span><span class="col-type arr">TEXT[]</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">status</span><span
+                            class="col-type enum">product_status_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">embedding</span><span
+                            class="col-type vec">vector(512)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">deleted_at /
+                            timestamps</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Has many</div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>cart_items</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>order_items</span><span
+                            class="rel-type">1:N SET NULL</span></div>
+                </div>
+            </div>
+
+            <div class="table-card vendor">
+                <div class="table-header">
+                    <div class="table-icon">🛒</div>
+                    <div>
+                        <div class="table-name">cart_items</div>
+                        <div class="table-desc">User shopping cart</div>
+                    </div>
+                    <div class="row-count">Phase 7</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">product_id</span><span class="col-type uuid">→ products CASCADE</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">size</span><span
+                            class="col-type text">TEXT</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">quantity</span><span
+                            class="col-type int">INTEGER CHECK > 0</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">created_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">UNIQUE(user_id,
+                            product_id, size)</span><span class="col-type bool">constraint</span></div>
+                </div>
+            </div>
+
+            <div class="table-card vendor">
+                <div class="table-header">
+                    <div class="table-icon">📋</div>
+                    <div>
+                        <div class="table-name">orders</div>
+                        <div class="table-desc">Purchase orders — RESTRICT on delete</div>
+                    </div>
+                    <div class="row-count">Phase 7</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">user_id</span><span
+                            class="col-type uuid">→ profiles RESTRICT</span></div>
+                    <div class="col-divider"></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">status</span><span
+                            class="col-type enum">order_status_enum</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">total_amount</span><span class="col-type dec">DECIMAL(10,2)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">currency</span><span
+                            class="col-type text">TEXT DEFAULT 'EUR'</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">shipping_name/address/city</span><span class="col-type text">TEXT
+                            (anonymised on delete)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">payment_intent_id</span><span class="col-type text">TEXT (Stripe
+                            only)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">created_at /
+                            updated_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+                <div class="relations-section">
+                    <div class="relations-title">Has many</div>
+                    <div class="rel-item"><span class="rel-arrow">↓</span><span>order_items</span><span
+                            class="rel-type">1:N CASCADE</span></div>
+                </div>
+            </div>
+
+            <div class="table-card junction">
+                <div class="table-header">
+                    <div class="table-icon">🧾</div>
+                    <div>
+                        <div class="table-name">order_items</div>
+                        <div class="table-desc">Line items — snapshot at purchase time</div>
+                    </div>
+                    <div class="row-count">junction</div>
+                </div>
+                <div class="table-body">
+                    <div class="col-row"><span class="col-badge pk">PK</span><span class="col-name">id</span><span
+                            class="col-type uuid">UUID</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span class="col-name">order_id</span><span
+                            class="col-type uuid">→ orders CASCADE</span></div>
+                    <div class="col-row"><span class="col-badge fk">FK</span><span
+                            class="col-name">product_id</span><span class="col-type uuid">→ products SET NULL</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">product_name</span><span class="col-type text">TEXT (snapshot)</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">product_price</span><span class="col-type dec">DECIMAL (snapshot)</span>
+                    </div>
+                    <div class="col-row"><span class="col-badge col"></span><span class="col-name">size /
+                            quantity</span><span class="col-type text">TEXT / INTEGER</span></div>
+                    <div class="col-row"><span class="col-badge col"></span><span
+                            class="col-name">created_at</span><span class="col-type ts">TIMESTAMPTZ</span></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MIGRATION ORDER -->
+        <div class="module-label" style="color:#6b6b8a; margin-top: 8px">● Migration Execution Order</div>
+        <div class="migration-panel">
+            <div style="font-size:13px; color: var(--muted)">Run these files in Supabase SQL Editor in exact order.
+                Never skip, never edit after running.</div>
+            <div class="migration-grid">
+                <div class="migration-item"><span class="migration-num">001</span><span
+                        class="migration-file">extensions.sql</span><span class="migration-phase">foundation</span>
+                </div>
+                <div class="migration-item"><span class="migration-num">002</span><span
+                        class="migration-file">enums.sql</span><span class="migration-phase">foundation</span></div>
+                <div class="migration-item"><span class="migration-num">003</span><span
+                        class="migration-file">profiles.sql</span><span class="migration-phase">phase 1-2</span></div>
+                <div class="migration-item"><span class="migration-num">004</span><span
+                        class="migration-file">profiles_rls.sql</span><span class="migration-phase">phase 1-2</span>
+                </div>
+                <div class="migration-item"><span class="migration-num">005</span><span
+                        class="migration-file">profiles_triggers.sql</span><span class="migration-phase">phase
+                        1-2</span></div>
+                <div class="migration-item"><span class="migration-num">006</span><span
+                        class="migration-file">storage_rls.sql</span><span class="migration-phase">phase 2-3</span>
+                </div>
+                <div class="migration-item"><span class="migration-num">007</span><span
+                        class="migration-file">wardrobe_items.sql</span><span class="migration-phase">phase 3</span>
+                </div>
+                <div class="migration-item"><span class="migration-num">008</span><span
+                        class="migration-file">wardrobe_rls.sql</span><span class="migration-phase">phase 3</span></div>
+                <div class="migration-item"><span class="migration-num">009</span><span
+                        class="migration-file">outfits.sql</span><span class="migration-phase">phase 3</span></div>
+                <div class="migration-item"><span class="migration-num">010</span><span
+                        class="migration-file">outfits_rls.sql</span><span class="migration-phase">phase 3</span></div>
+                <div class="migration-item"><span class="migration-num">011</span><span
+                        class="migration-file">ai_results.sql</span><span class="migration-phase">phase 4-5</span></div>
+                <div class="migration-item"><span class="migration-num">012</span><span
+                        class="migration-file">ai_rls.sql</span><span class="migration-phase">phase 4-5</span></div>
+                <div class="migration-item"><span class="migration-num">013</span><span
+                        class="migration-file">social.sql</span><span class="migration-phase">phase 6</span></div>
+                <div class="migration-item"><span class="migration-num">014</span><span
+                        class="migration-file">social_rls.sql</span><span class="migration-phase">phase 6</span></div>
+                <div class="migration-item"><span class="migration-num">015</span><span
+                        class="migration-file">vendor.sql</span><span class="migration-phase">phase 7</span></div>
+                <div class="migration-item"><span class="migration-num">016</span><span
+                        class="migration-file">vendor_rls.sql</span><span class="migration-phase">phase 7</span></div>
+                <div class="migration-item"><span class="migration-num">017</span><span
+                        class="migration-file">marketplace.sql</span><span class="migration-phase">phase 7</span></div>
+                <div class="migration-item"><span class="migration-num">018</span><span
+                        class="migration-file">marketplace_rls.sql</span><span class="migration-phase">phase 7</span>
+                </div>
+                <div class="migration-item"><span class="migration-num">019</span><span
+                        class="migration-file">indexes.sql</span><span class="migration-phase">all phases</span></div>
+                <div class="migration-item"><span class="migration-num">020</span><span
+                        class="migration-file">functions.sql</span><span class="migration-phase">all phases</span></div>
+            </div>
+        </div>
+
+    </div>
+</body>
+
+</html>

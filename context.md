@@ -26,12 +26,14 @@ wearism-backend/
 │   ├── app.js               # Fastify app factory setup
 │   ├── config/              # Centralized configuration (env, supabase)
 │   ├── plugins/             # Fastify plugins (db, auth hooks)
-│   ├── middleware/          # Shared Fastify preHandler hooks (e.g., auth guards)
-│   ├── utils/               # Shared helpers (error formatting, responses)
+│   ├── middleware/          # Shared Fastify preHandler hooks (auth, UUID validation)
+│   ├── services/            # External service clients (AI service HTTP client)
+│   ├── workers/             # Background job processors (classification worker)
+│   ├── utils/               # Shared helpers (imageProcessor, error formatting)
 │   └── modules/             # Feature modules (isolated)
 │       ├── auth/
 │       ├── user/
-│       ├── wardrobe/
+│       ├── wardrobe/        # Items + Outfits
 │       ├── ai/
 │       ├── recommendations/
 │       ├── social/
@@ -74,6 +76,18 @@ Every feature module inside `src/modules/` adheres to a strict 3-4 file pattern:
 - [x] Configured Fastify `app.js` with `fastifyMultipart` 5MB bounds for image uploads.
 - [x] Ensured GDPR log redaction for sensitive physical data using `pino` redact configurations.
 - [x] Added `deleteAvatar` to Auth Service `deleteAccount` sequence preventing orphaned images in bucket.
+
+**Phase 3: Wardrobe Module & AI Integration - COMPLETED**
+- [x] Implemented wardrobe item CRUD with Fastify JSON Schema validation (`wardrobe.schema.js`).
+- [x] `wardrobeService` with image path ownership validation, 500-item size cap, signed URL generation, soft delete + storage cleanup.
+- [x] Outfit CRUD with junction table management (`outfit_items`), item ownership validation on create/update.
+- [x] AI service HTTP client (`aiService.js`) with 30s timeout and AbortController.
+- [x] Classification worker (`classificationWorker.js`) polling `ai_results` every 5s for pending jobs.
+- [x] UUID validation middleware (`validateUUID.js`) on all `:id` param routes.
+- [x] Rate limiting: 30 items/10min on wardrobe creation, 20 outfits/10min on outfit creation.
+- [x] GDPR: `deleteAllUserItems` wired into `auth.service.js` `deleteAccount` for bulk storage erasure.
+- [x] Registered `/wardrobe` and `/wardrobe/outfits` routes in `app.js`.
+- [x] 28 Jest tests passing across wardrobe and outfit endpoints.
 
 ## 5. Coding Guidelines for AI Agents
 1. **Always use ES Modules (`import`/`export`).** Never use `require`.
