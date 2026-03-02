@@ -8,8 +8,9 @@
 1. [General Integration Guidelines](#1-general-integration-guidelines)
 2. [Authentication Module (Phase 1)](#2-authentication-module)
 3. [User Profile Module (Phase 2)](#3-user-profile-module)
-4. [Wardrobe Module (Phase 3)](#4-wardrobe-module)
-5. [Outfits Module (Phase 3)](#5-outfits-module)
+4. [Wardrobe Module (Phase 3/4)](#4-wardrobe-module)
+5. [Outfits Module (Phase 3/4)](#5-outfits-module)
+6. [Internal AI Service (Phase 4)](#6-internal-ai-service)
    - [Get Profile](#get-userprofile)
    - [Update Profile](#patch-userprofile)
    - [Upload Avatar](#post-userprofileavatar)
@@ -326,7 +327,7 @@ Content-Type: multipart/form-data
 
 ### `POST /wardrobe/items`
 **Auth Required:** Yes  
-**Rate Limit:** 30 requests per 10 minutes
+**Rate Limit:** 10 requests per 1 hour (per user)
 
 Creates a new wardrobe item and queues an AI clothing classification job.
 
@@ -434,7 +435,7 @@ Poll this endpoint to check AI classification progress.
 
 ### `POST /wardrobe/outfits`
 **Auth Required:** Yes  
-**Rate Limit:** 20 requests per 10 minutes
+**Rate Limit:** 20 requests per 1 hour (per user)
 
 Creates an outfit from wardrobe items and queues an AI rating job.
 
@@ -478,3 +479,42 @@ Update outfit metadata and/or replace item list. If `item_ids` provided, all mus
 **Auth Required:** Yes
 
 Soft-deletes the outfit. Junction records cascade-deleted via FK.
+
+---
+
+## 6. Internal AI Service
+These endpoints are internal to the monorepo and are used by workers. They require the `X-Internal-Secret` header.
+
+### `POST /classify/clothing`
+**Auth Required:** Internal Secret (`X-Internal-Secret`)
+
+**Request Body:**
+```json
+{
+  "image_url": "https://...",
+  "item_id": "uuid"
+}
+```
+
+### `POST /rate/outfit`
+**Auth Required:** Internal Secret
+
+**Request Body:**
+```json
+{
+  "outfit_id": "uuid",
+  "items": [...],
+  "user_profile": { ... }
+}
+```
+
+### `POST /analyse/user`
+**Auth Required:** Internal Secret
+
+**Request Body:**
+```json
+{
+  "image_url": "https://...",
+  "user_id": "uuid"
+}
+```

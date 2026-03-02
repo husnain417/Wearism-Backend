@@ -11,7 +11,8 @@ import { userRoutes } from './modules/user/user.routes.js';
 import { wardrobeRoutes } from './modules/wardrobe/wardrobe.routes.js';
 import { outfitRoutes } from './modules/wardrobe/outfit.routes.js';
 import fastifyMultipart from '@fastify/multipart';
-import { startClassificationWorker } from './workers/classificationWorker.js';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 
 export async function buildApp() {
     const app = Fastify({
@@ -33,8 +34,15 @@ export async function buildApp() {
         },
     });
 
-    // Register env validation first
-    await app.register(fastifyEnv, { schema: envSchema, dotenv: true });
+    // Register env validation first using absolute path
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    await app.register(fastifyEnv, {
+        schema: envSchema,
+        dotenv: {
+            path: resolve(__dirname, '../.env'),
+        },
+    });
 
     // Security + CORS + Rate Limiting
     await app.register(fastifyHelmet);
@@ -72,11 +80,6 @@ export async function buildApp() {
 
     // Health check route
     app.get('/health', async () => ({ status: 'ok' }));
-
-    // Start background workers (skip in test environment)
-    if (process.env.NODE_ENV !== 'test') {
-        startClassificationWorker(app.log);
-    }
 
     return app;
 }

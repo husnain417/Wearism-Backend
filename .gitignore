@@ -1,14 +1,30 @@
 # Dependencies
 node_modules/
+backend/node_modules/
+venv/
+.venv/
+env/
+.env/
 
 # Environment — NEVER commit these
 .env
 .env.local
 .env.production
+backend/.env
+ai-service/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Logs
 *.log
 logs/
+backend/logs/
 
 # OS files
 .DS_Store
@@ -19,4 +35,7 @@ dist/
 build/
 
 # Editor
-.vscode/settings.json
+.vscode/
+.idea/
+*.swp
+*.swo

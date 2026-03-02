@@ -12,8 +12,9 @@ export async function wardrobeRoutes(fastify) {
         schema: createItemSchema,
         config: {
             rateLimit: {
-                max: 30,              // 30 items per 10 minutes
-                timeWindow: '10 minutes',
+                max: 10,
+                timeWindow: '1 hour',
+                keyGenerator: (request) => request.user.sub, // per user, not per IP
             },
         },
     }, wardrobeController.createItem);

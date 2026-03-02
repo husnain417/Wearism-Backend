@@ -40,6 +40,25 @@ jest.unstable_mockModule('../src/config/supabase.js', () => ({
     supabase: mockSupabase,
 }));
 
+// ── 4. Mock aiQueue (BullMQ — no real Redis in tests) ──
+jest.unstable_mockModule('../src/services/aiQueue.js', () => ({
+    aiQueue: {
+        queueClothingClassification: jest.fn().mockResolvedValue(undefined),
+        queueOutfitRating: jest.fn().mockResolvedValue(undefined),
+        queueUserAnalysis: jest.fn().mockResolvedValue(undefined),
+    },
+}));
+
+// ── 5. Mock ioredis (prevent real Redis connection attempt) ──
+jest.unstable_mockModule('ioredis', () => ({
+    Redis: jest.fn().mockImplementation(() => ({
+        on: jest.fn(),
+        connect: jest.fn(),
+        disconnect: jest.fn(),
+    })),
+    default: jest.fn(),
+}));
+
 // ── 4. Dynamic import AFTER all mocks ────────────────────
 const { buildApp } = await import('../src/app.js');
 
@@ -55,13 +74,16 @@ function setupAuth() {
     const mockEq = jest.fn().mockReturnValue({ single: mockSingle });
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
 
-    // ai_results insert mock (for controllers that insert AI jobs)
-    const mockInsert = jest.fn().mockResolvedValue({ data: null, error: null });
+    // ai_results insert mock (controller does .insert(...).select('id').single())
+    const mockSingle2 = jest.fn().mockResolvedValue({ data: { id: 'ai-result-mock-id' } });
+    const mockSelectAfterInsert = jest.fn().mockReturnValue({ single: mockSingle2 });
+    const mockInsert = jest.fn().mockReturnValue({ select: mockSelectAfterInsert });
 
     mockSupabase.from.mockImplementation((table) => {
         if (table === 'ai_results') {
             return {
-                insert: mockInsert, select: jest.fn().mockReturnValue({
+                insert: mockInsert,
+                select: jest.fn().mockReturnValue({
                     eq: jest.fn().mockReturnValue({
                         eq: jest.fn().mockReturnValue({
                             order: jest.fn().mockReturnValue({
@@ -73,7 +95,7 @@ function setupAuth() {
                             }),
                         }),
                     }),
-                })
+                }),
             };
         }
         // Default: profiles soft-delete check

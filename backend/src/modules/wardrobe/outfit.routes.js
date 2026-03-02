@@ -10,7 +10,8 @@ export async function outfitRoutes(fastify) {
         config: {
             rateLimit: {
                 max: 20,
-                timeWindow: '10 minutes',
+                timeWindow: '1 hour',
+                keyGenerator: (request) => request.user.sub, // per user
             },
         },
     }, outfitController.createOutfit);

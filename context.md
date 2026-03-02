@@ -7,39 +7,44 @@ Wearism is a modern backend application. This document serves as the primary sou
 - **Runtime Environment:** Node.js (v20+ target)
 - **Module System:** ES Modules (`"type": "module"` in `package.json`)
 - **API Framework:** Fastify (v5)
-- **Validation:** JSON Schema (via Fastify serialization)
+- **AI Service Framework:** FastAPI (Python 3.12+)
+- **Queue System:** BullMQ (Node.js) + Celery (Python)
+- **Message Broker:** Redis (v7, password protected)
+- **Validation:** JSON Schema (Fastify) + Pydantic (FastAPI)
 - **Database & Auth:** Supabase (PostgreSQL)
-  - using `@supabase/supabase-js`
-  - Client configured in `src/config/supabase.js` using `SERVICE_ROLE_KEY`
-- **Environment Management:** `@fastify/env` with JSON Schema validation (`src/config/env.js`)
-- **Logging:** Pino (built into Fastify) with `pino-pretty` for development
-- **Security:** `@fastify/helmet`, `@fastify/cors`, `@fastify/rate-limit`
+  - using `@supabase/supabase-js` and `supabase-py`
+  - Client configured in `src/config/supabase.js` and `ai-service/db/supabase_client.py` using `SERVICE_ROLE_KEY`
+- **Environment Management:** `@fastify/env` (Node) and `python-dotenv` (Python)
+- **Logging:** Pino (Node) and standard `logging` (Python)
+- **Security:** `@fastify/helmet`, `@fastify/cors`, `TrustedHostMiddleware` (FastAPI), Shared Internal Secret (`AI_SHARED_SECRET`)
 - **Authentication Strategy:** JWT via `@fastify/jwt` (and Supabase Auth)
-- **Linting & Formatting:** ESLint (v9) + Prettier
+- **Image Processing:** `sharp` (Node) and `Pillow` (Python)
+- **Linting & Formatting:** ESLint/Prettier (Node) and standard Python conventions
 
 ## 3. Architecture & Folder Structure
 The codebase follows a modular, feature-based architecture to keep concerns isolated:
 
 ```
-wearism-backend/
-├── src/
-│   ├── app.js               # Fastify app factory setup
-│   ├── config/              # Centralized configuration (env, supabase)
-│   ├── plugins/             # Fastify plugins (db, auth hooks)
-│   ├── middleware/          # Shared Fastify preHandler hooks (auth, UUID validation)
-│   ├── services/            # External service clients (AI service HTTP client)
-│   ├── workers/             # Background job processors (classification worker)
-│   ├── utils/               # Shared helpers (imageProcessor, error formatting)
-│   └── modules/             # Feature modules (isolated)
-│       ├── auth/
-│       ├── user/
-│       ├── wardrobe/        # Items + Outfits
-│       ├── ai/
-│       ├── recommendations/
-│       ├── social/
-│       └── marketplace/
-├── server.js                # Entry point
-└── .env                     # Local environment variables
+wearism/
+├── docker-compose.yml       # Local Redis + volumes
+├── backend/                 # Fastify Node.js Backend
+│   ├── server.js            # Entry point
+│   ├── src/
+│   │   ├── app.js           # Fastify app factory setup
+│   │   ├── config/          # Centralized configuration (env, supabase, redis)
+│   │   ├── services/        # BullMQ Queue producers (`aiQueue.js`)
+│   │   ├── middleware/      # Shared hooks (auth, UUID, rateLimit)
+│   │   └── modules/         # Feature modules (isolated)
+│   └── __tests__/           # Integration tests
+├── ai-service/              # FastAPI Python AI Service
+│   ├── main.py              # FastAPI Entry point
+│   ├── celery_app.py        # Celery worker configuration
+│   ├── tasks/               # Background task definitions
+│   ├── models/              # AI Model stubs/wrappers
+│   ├── schemas/             # Pydantic validation models
+│   └── db/                  # Python Supabase client
+├── docs/                    # API and architectural documentation
+└── context.md               # This document
 ```
 
 ### Module Pattern Convention
@@ -77,17 +82,21 @@ Every feature module inside `src/modules/` adheres to a strict 3-4 file pattern:
 - [x] Ensured GDPR log redaction for sensitive physical data using `pino` redact configurations.
 - [x] Added `deleteAvatar` to Auth Service `deleteAccount` sequence preventing orphaned images in bucket.
 
-**Phase 3: Wardrobe Module & AI Integration - COMPLETED**
+**Phase 3: Wardrobe Module - COMPLETED**
 - [x] Implemented wardrobe item CRUD with Fastify JSON Schema validation (`wardrobe.schema.js`).
-- [x] `wardrobeService` with image path ownership validation, 500-item size cap, signed URL generation, soft delete + storage cleanup.
-- [x] Outfit CRUD with junction table management (`outfit_items`), item ownership validation on create/update.
-- [x] AI service HTTP client (`aiService.js`) with 30s timeout and AbortController.
-- [x] Classification worker (`classificationWorker.js`) polling `ai_results` every 5s for pending jobs.
-- [x] UUID validation middleware (`validateUUID.js`) on all `:id` param routes.
-- [x] Rate limiting: 30 items/10min on wardrobe creation, 20 outfits/10min on outfit creation.
-- [x] GDPR: `deleteAllUserItems` wired into `auth.service.js` `deleteAccount` for bulk storage erasure.
-- [x] Registered `/wardrobe` and `/wardrobe/outfits` routes in `app.js`.
-- [x] 28 Jest tests passing across wardrobe and outfit endpoints.
+- [x] `wardrobeService` with image path ownership validation, 500-item size cap, signed URL generation.
+- [x] Outfit CRUD with junction table management (`outfit_items`).
+- [x] registered `/wardrobe` and `/wardrobe/outfits` routes in `app.js`.
+
+**Phase 4: AI Service Integration - COMPLETED**
+- [x] Restructured into Monorepo with `backend/` and `ai-service/` subdirectories.
+- [x] Implemented secure Redis setup via Docker Compose (Password protected, localhost-only).
+- [x] Swapped Phase 3 `setInterval` worker for `BullMQ` (Fastify) and `Celery` (Python) job queues.
+- [x] Created `ai-service` using FastAPI with `TrustedHostMiddleware` and `AI_SHARED_SECRET` security.
+- [x] Implemented async stub models for classification, outfit rating, and user analysis.
+- [x] Decoupled Write-Flow: Celery worker writes results directly to Supabase using Python client.
+- [x] Hardened per-user rate limiting (10 classification jobs/hour) on Fastify side.
+- [x] Integrated `flower` for real-time Celery task monitoring.
 
 ## 5. Coding Guidelines for AI Agents
 1. **Always use ES Modules (`import`/`export`).** Never use `require`.
