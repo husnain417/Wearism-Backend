@@ -96,7 +96,15 @@ Every feature module inside `src/modules/` adheres to a strict 3-4 file pattern:
 - [x] Implemented async stub models for classification, outfit rating, and user analysis.
 - [x] Decoupled Write-Flow: Celery worker writes results directly to Supabase using Python client.
 - [x] Hardened per-user rate limiting (10 classification jobs/hour) on Fastify side.
-- [x] Integrated `flower` for real-time Celery task monitoring.
+- [x] Implemented `flower` for real-time Celery task monitoring.
+
+**Phase 5: Recommendations Module - COMPLETED**
+- [x] Built the `combinationEngine.js` for intelligent outfit building with dynamic occasion/season filtering and color validation.
+- [x] Initialized `/recommendations` API endpoints (`generate`, `list`, `getOne`, `save`, `dismiss`) to orchestrate the generation and lifecycle of recommendations.
+- [x] Enforced strict ownership scoping and data isolation at the service level on all operations.
+- [x] Addressed computationally heavy endpoints by enforcing Fastify Rate Limiting.
+- [x] Added Python Celery Worker `rate_recommendation` task for asynchronous scoring of combinations.
+- [x] Wrote an extensive integration test suite (`recommendations.test.js` & `combinationEngine.test.js`) resolving 429 quota isolation, resulting in 100% test pass rate.
 
 ## 5. Coding Guidelines for AI Agents
 1. **Always use ES Modules (`import`/`export`).** Never use `require`.

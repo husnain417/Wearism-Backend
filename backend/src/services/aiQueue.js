@@ -71,4 +71,18 @@ export const aiQueue = {
             backoff: { type: 'fixed', delay: 10000 },
         });
     },
+
+    async queueRecommendationRating({ recommendationId, items, aiResultId, userId }) {
+        const { outfit } = getQueues();
+        await outfit.add('rate_recommendation', {
+            recommendation_id: recommendationId,
+            items,
+            ai_result_id: aiResultId,
+            user_id: userId,
+        }, {
+            jobId: `rec-${recommendationId}`,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 10000 },
+        });
+    },
 };

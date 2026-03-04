@@ -10,6 +10,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
 import { wardrobeRoutes } from './modules/wardrobe/wardrobe.routes.js';
 import { outfitRoutes } from './modules/wardrobe/outfit.routes.js';
+import { recommendationsRoutes } from './modules/recommendations/recommendations.routes.js';
 import fastifyMultipart from '@fastify/multipart';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -68,6 +69,7 @@ export async function buildApp() {
     await app.register(userRoutes, { prefix: '/user' });
     await app.register(wardrobeRoutes, { prefix: '/wardrobe' });
     await app.register(outfitRoutes, { prefix: '/wardrobe/outfits' });
+    await app.register(recommendationsRoutes, { prefix: '/recommendations' });
 
     // Global error handler
     app.setErrorHandler((error, request, reply) => {

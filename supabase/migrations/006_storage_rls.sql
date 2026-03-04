@@ -1,4 +1,4 @@
--- 006_storage_rls.sql
+ n-- 006_storage_rls.sql
 -- Storage RLS for both avatars and wardrobe buckets
 
 -- ── WARDROBE BUCKET POLICIES ────────────────────────────

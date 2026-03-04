@@ -19,6 +19,7 @@
    - [Logout](#post-authlogout)
    - [Get User Data (GDPR)](#get-authmedata)
    - [Delete Account (GDPR)](#delete-authaccount)
+7. [Recommendations Module (Phase 5)](#7-recommendations-module)
 
 ---
 
@@ -518,3 +519,107 @@ These endpoints are internal to the monorepo and are used by workers. They requi
   "user_id": "uuid"
 }
 ```
+
+### `POST /rate/recommendation`
+**Auth Required:** Internal Secret
+
+**Request Body:**
+```json
+{
+  "recommendation_id": "uuid",
+  "items": [...],
+  "ai_result_id": "uuid",
+  "user_id": "uuid"
+}
+```
+
+---
+
+## 7. Recommendations Module
+
+### `POST /recommendations/generate`
+**Auth Required:** Yes  
+**Rate Limit:** 5 requests per 1 hour (per user)
+
+Triggers the AI to generate a fresh batch of outfit combinations based on the user's available wardrobe items. Generates up to 20 combinations and queues them for AI scoring.
+
+**Request Body:**
+```json
+{
+  "occasion": "casual",
+  "season": "all_season"
+}
+```
+*`occasion` and `season` are optional enum filters.*
+
+**Success Response (202 Accepted):**
+```json
+{
+  "success": true,
+  "message": "8 recommendations generated. AI scoring in progress.",
+  "generated": 8,
+  "recommendation_ids": ["uuid-1", "uuid-2"]
+}
+```
+*Note: If called while fresh (< 6 hours old) recommendations exist, it will return `generated: 0` without queueing jobs. Pass `force_refresh: true` to override.*
+
+---
+
+### `GET /recommendations`
+**Auth Required:** Yes
+
+Returns a paginated list of recommendations for the user.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `occasion` | string | — | Filter by occasion |
+| `status` | string | scored | `all`, `scored` (only rated ones), or `pending` (scoring in progress) |
+| `page` | integer | 1 | Page number |
+| `limit` | integer | 10 | Items per page (max 20) |
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "recommendations": [ ... ],
+  "pagination": { "total": 12, "page": 1, "limit": 10, "total_pages": 2 }
+}
+```
+
+---
+
+### `GET /recommendations/:id`
+**Auth Required:** Yes
+
+Returns a specific recommendation with fully populated item details. Returns 404 if the recommendation belongs to another user.
+
+---
+
+### `POST /recommendations/:id/save`
+**Auth Required:** Yes
+
+Converts an AI recommendation into a persistent user Outfit. Copies the items into the `outfits` and `outfit_items` tables.
+
+**Success Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Recommendation saved as outfit.",
+  "outfit_id": "new-outfit-uuid"
+}
+```
+
+---
+
+### `DELETE /recommendations/:id/save`
+**Auth Required:** Yes
+
+Reverses the save action by setting `is_saved: false` on the recommendation. (Note: The actual outfit must be deleted via `/wardrobe/outfits/:id`).
+
+---
+
+### `POST /recommendations/:id/dismiss`
+**Auth Required:** Yes
+
+Marks a recommendation as dismissed (`is_dismissed: true`). Dismissed recommendations are hidden from standard `GET /recommendations` queries.
