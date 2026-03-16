@@ -12,7 +12,8 @@ from schemas.requests import OutfitItem, UserProfile
     max_retries=3,
     default_retry_delay=15,
 )
-def rate_outfit(self, outfit_id: str, ai_result_id: str):
+def rate_outfit(self, outfit_id: str, ai_result_id: str,
+                season: str = None, occasion: str = None, weather: str = None):
     """
     Celery task: fetch outfit items from DB and rate the outfit.
     Writes AI scores back to the outfits table.
@@ -58,7 +59,14 @@ def rate_outfit(self, outfit_id: str, ai_result_id: str):
         profile_data = outfit_row.data.get('profiles', {}) if outfit_row.data else {}
         user_profile = UserProfile(**profile_data) if profile_data else None
 
-        result = asyncio.run(rate_outfit_model(outfit_id, items, user_profile))
+        result = asyncio.run(rate_outfit_model(
+            outfit_id,
+            items,
+            user_profile,
+            season=season,
+            occasion=occasion,
+            weather=weather,
+        ))
         processing_ms = int((time.time() - start_time) * 1000)
 
         # Write scores to outfits table
@@ -93,7 +101,9 @@ def rate_outfit(self, outfit_id: str, ai_result_id: str):
     default_retry_delay=10,
 )
 def rate_recommendation(self, recommendation_id: str, items: list,
-                        ai_result_id: str, user_id: str):
+                        ai_result_id: str, user_id: str,
+                        season: str = None, occasion: str = None,
+                        weather: str = None):
     """
     Celery task: rate a system-generated recommendation combination.
     Unlike rate_outfit, items are passed directly (not fetched from DB)
@@ -122,9 +132,14 @@ def rate_recommendation(self, recommendation_id: str, items: list,
 
         outfit_items = [OutfitItem(**item) for item in items]
 
-        result = asyncio.run(
-            rate_outfit_model(recommendation_id, outfit_items, user_profile)
-        )
+        result = asyncio.run(rate_outfit_model(
+            recommendation_id,
+            outfit_items,
+            user_profile,
+            season=season,
+            occasion=occasion,
+            weather=weather,
+        ))
 
         processing_ms = int((time.time() - start_time) * 1000)
 

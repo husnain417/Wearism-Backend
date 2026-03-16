@@ -6,11 +6,16 @@ export const createOutfitSchema = {
             name: { type: 'string', maxLength: 100 },
             occasion: {
                 type: 'string', enum: [
-                    'casual', 'business_casual', 'formal', 'athletic',
-                    'outdoor', 'beach', 'evening', 'date_night',
+                    'casual', 'formal', 'business', 'smart_casual',
+                    'streetwear', 'athleisure', 'old_money',
+                    'party', 'black_tie', 'wedding'
                 ]
             },
             status: { type: 'string', enum: ['draft', 'saved', 'published'] },
+            weather: {
+                type: 'string',
+                enum: ['hot', 'warm', 'mild', 'cool', 'cold']
+            },
             item_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, minItems: 1, maxItems: 20 },
         },
         additionalProperties: false,
@@ -24,11 +29,16 @@ export const updateOutfitSchema = {
             name: { type: 'string', maxLength: 100 },
             occasion: {
                 type: 'string', enum: [
-                    'casual', 'business_casual', 'formal', 'athletic',
-                    'outdoor', 'beach', 'evening', 'date_night',
+                    'casual', 'formal', 'business', 'smart_casual',
+                    'streetwear', 'athleisure', 'old_money',
+                    'party', 'black_tie', 'wedding'
                 ]
             },
             status: { type: 'string', enum: ['draft', 'saved', 'published'] },
+            weather: {
+                type: 'string',
+                enum: ['hot', 'warm', 'mild', 'cool', 'cold']
+            },
             item_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, minItems: 1, maxItems: 20 },
         },
         additionalProperties: false,

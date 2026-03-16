@@ -15,18 +15,34 @@ class ClassifyClothingRequest(BaseModel):
 
 class ClassifyClothingResponse(BaseModel):
     model_config = _no_ns
-    item_id:       str
-    category:      str
-    subcategory:   str
-    colors:        List[str]
-    pattern:       str
-    fit:           str
-    fabric:        str
-    season:        str
-    confidence:    float
-    model_version: str
-    # 512-dim vector — None until real model is wired in
-    embedding:     Optional[List[float]] = None
+    item_id:                    str
+
+    # 4-slot system
+    wardrobe_slot:              str   # upperwear | outerwear | lowerwear | accessories
+
+    # FashionCLIP outputs
+    fashionclip_main_category:  str
+    fashionclip_sub_category:   str
+    fashionclip_attributes:     List[str]   # top-10 attributes
+    fashionclip_description:    str         # 'tops, t-shirt, cotton, casual...'
+    fashionclip_image_vector:   Optional[List[float]] = None  # 512-dim
+
+    # Pre-extracted numeric features
+    color_dominant_rgb:         List[List[int]]  # [[r,g,b],[r,g,b],[r,g,b]]
+    pattern_strength:           float
+    texture_score:              float
+    formality_score:            float
+
+    # Rating Engine helpers
+    is_accessory:               bool
+    tag:                        str   # 'shirt','pants','jacket/coat','shoes','accessories'
+
+    # SAM outputs (None when item classified from standalone image, not outfit photo)
+    sam_label:                  Optional[str]   = None
+    sam_confidence:             Optional[float] = None
+
+    confidence:                 float
+    model_version:              str
 
 
 # ── OUTFIT RATING ────────────────────────────────────────
@@ -50,17 +66,30 @@ class RateOutfitRequest(BaseModel):
     outfit_id:    str
     items:        List[OutfitItem]
     user_profile: Optional[UserProfile] = None
+    # Context fields needed by Rating Engine
+    season:       Optional[str] = None  # 'spring'|'summer'|'fall'|'winter'
+    occasion:     Optional[str] = None  # 'casual'|'formal'|'business'|...
+    weather:      Optional[str] = None  # 'hot'|'warm'|'mild'|'cool'|'cold'
 
+
+class RatingBreakdown(BaseModel):
+    score:  float
+    detail: Optional[str] = None
 
 class RateOutfitResponse(BaseModel):
     model_config = _no_ns
-    outfit_id:        str
-    rating:           float  # 0.0 to 10.0
-    color_score:      float
-    proportion_score: float
-    style_score:      float
-    feedback:         str
-    model_version:    str
+    outfit_id:          str
+    rating:             float   # 0.0 – 10.0 overall
+    color_score:        float
+    proportion_score:   float
+    style_score:        float
+    feedback:           List[str]
+    strengths:          List[str]
+    improvements:       List[str]
+    # Full breakdown per dimension — optional
+    breakdown:          Optional[dict] = None
+    compatibility_score: Optional[float] = None
+    model_version:      str
 
 
 # ── USER ANALYSIS (age + height estimation) ──────────────

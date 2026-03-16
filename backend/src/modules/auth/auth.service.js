@@ -1,6 +1,31 @@
 import { supabase } from '../../config/supabase.js';
 import { userService } from '../user/user.service.js';
 import { wardrobeService } from '../wardrobe/wardrobe.service.js';
+import { getRedisClient } from '../../config/redis.js';
+
+// ── GDPR helper — deletes all objects under posts/{userId}/ in Storage
+async function deleteAllUserPostImages(userId) {
+    const { data: files } = await supabase.storage
+        .from('posts')
+        .list(userId);
+
+    if (!files || files.length === 0) return;
+
+    const paths = files.map(f => `${userId}/${f.name}`);
+    await supabase.storage.from('posts').remove(paths);
+}
+
+// ── GDPR helper — deletes all objects under products/{userId}/ in Storage
+async function deleteAllUserProductImages(userId) {
+    const { data: files } = await supabase.storage
+        .from('products')
+        .list(userId);
+
+    if (!files || files.length === 0) return;
+
+    const paths = files.map(f => `${userId}/${f.name}`);
+    await supabase.storage.from('products').remove(paths);
+}
 
 export const authService = {
     // ── SIGNUP ──────────────────────────────────────────
@@ -83,14 +108,22 @@ export const authService = {
 
     // ── GET USER DATA (GDPR Right to Access) ──────────────
     async getUserData(userId) {
-        const { data, error } = await supabase
+        const { data: profile, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', userId)
             .single();
 
         if (error) throw error;
-        return data;
+
+        // GDPR Right to Access — include all personal data held
+        const [{ data: orders }, { data: cart }, { data: vendor }] = await Promise.all([
+            supabase.from('orders').select('*').eq('buyer_id', userId),
+            supabase.from('cart_items').select('*').eq('user_id', userId),
+            supabase.from('vendor_profiles').select('*').eq('user_id', userId),
+        ]);
+
+        return { profile, orders: orders || [], cart: cart || [], vendor: vendor || null };
     },
 
     // ── DELETE ACCOUNT (GDPR Right to Erasure) ────────────
@@ -106,6 +139,16 @@ export const authService = {
 
         // Delete all wardrobe images from storage
         await wardrobeService.deleteAllUserItems(userId);
+
+        // GDPR: delete all post images from Supabase Storage
+        await deleteAllUserPostImages(userId);
+
+        // GDPR: delete all product images from Supabase Storage
+        await deleteAllUserProductImages(userId);
+
+        // GDPR: clear Redis feed cache for this user
+        const redis = getRedisClient();
+        await redis.del(`feed:${userId}`);
 
         // Hard delete from auth (cascades to profiles via FK)
         const { error } = await supabase.auth.admin.deleteUser(userId);

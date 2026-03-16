@@ -106,6 +106,31 @@ Every feature module inside `src/modules/` adheres to a strict 3-4 file pattern:
 - [x] Added Python Celery Worker `rate_recommendation` task for asynchronous scoring of combinations.
 - [x] Wrote an extensive integration test suite (`recommendations.test.js` & `combinationEngine.test.js`) resolving 429 quota isolation, resulting in 100% test pass rate.
 
+**Phase 6: Social Hub — COMPLETED**
+- [x] Created full social module structure: `posts/`, `comments/`, `follows/`, `feed/` each with routes, controller, service, and schema files.
+- [x] Built `nsfwFilter.js` — synchronous keyword/heuristic filter (`checkContent`, `checkPost`); gates every post caption, tag array, and comment body before DB write.
+- [x] Built `trendingScore.js` — Hacker News-style decay formula `(likes×1.5 + comments×2 − reports×3) / (age+2)^1.5`; refreshes top-50 into Redis every 15 min via `setInterval` in `app.js`.
+- [x] Built `feedCache.js` — per-user Redis cache (TTL 30 min); `buildUserFeed`, `getUserFeed` (paginated), `invalidateUserFeed`, `invalidateFollowerFeeds` (bulk DEL).
+- [x] `postsService`: create (NSFW gate, image-path ownership, signed URL, async feed invalidation), getPost (visibility enforcement + `viewer_has_liked`), deletePost, listUserPosts, toggleLike, reportPost.
+- [x] `commentsService`: create (NSFW gate, 1-level threading enforced), listComments (nested replies in 2 queries), deleteComment (own only, soft).
+- [x] `followsService`: follow (re-follow via soft-delete restore, self-follow guard), unfollow, listFollowers/listFollowing (paginated), getRelationship (parallel Promise.all).
+- [x] `feedService`: thin orchestration over `feedCache` and `trendingScore`.
+- [x] All four controllers written following project pattern: `postsController`, `commentsController`, `followsController`, `feedController`.
+- [x] 14 endpoints registered: `/posts` (6), `/posts/:postId/comments` (3), `/follows` (5), `/feed` (2).
+- [x] GDPR Article 17: `auth.service.js deleteAccount` extended with `deleteAllUserPostImages` (Storage cleanup) and `redis.del(feed:userId)`.
+- [x] Fixed `profiles.username → profiles.full_name` column name across all 5 service files after schema audit.
+
+**Phase 7: Marketplace — COMPLETED**
+- [x] Implemented core marketplace tables: `vendor_profiles`, `products`, `product_images`, `cart_items`, `orders`, `order_items` with full RLS and audit triggers.
+- [x] Built `requireVendor.js` middleware to protect management endpoints (status check: pending, approved, suspended).
+- [x] `vendorsService`: register (shop metadata), profile management, dashboard stats (revenue, sales, order counts), public storefront details.
+- [x] `productsService`: CRUD for listings, multi-image support (max 6), full-text search, AI-suggested categories, and wardrobe-to-resale conversion logic.
+- [x] `cartService`: high-performance cart management with self-purchase protection, stock availability validation, and line-item totals.
+- [x] `ordersService`: multi-vendor order splitting, atomic stock decrementation (cancel-restore via RPC), price snapshotting, and strict status transition enforcement.
+- [x] GDPR Compliance: `deleteAccount` extended with `deleteAllUserProductImages` (Storage cleanup); `getMyData` extended to export vendor profile, cart, and order history.
+- [x] Implemented 22 endpoints across 4 modules: `/vendors`, `/products`, `/cart`, `/orders`.
+- [x] Hardened write endpoints with per-hour rate limits (Products: 50, Orders: 20, Cart: 100).
+
 ## 5. Coding Guidelines for AI Agents
 1. **Always use ES Modules (`import`/`export`).** Never use `require`.
 2. **Never expose the `service_role` key.** Only use `src/config/supabase.js` for DB interactions on the backend.

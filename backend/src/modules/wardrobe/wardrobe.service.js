@@ -2,7 +2,7 @@ import { supabase } from '../../config/supabase.js';
 
 export const wardrobeService = {
     // ── CREATE ITEM ──────────────────────────────────────
-    async createItem(userId, { item_id, image_path, name, brand, category, condition, purchase_price }) {
+    async createItem(userId, { item_id, image_path, name, brand, condition, purchase_price }) {
         // SECURITY: validate that the image_path starts with the user's own folder
         // Prevents a user from registering another user's uploaded image as their own
         if (!image_path.startsWith(`${userId}/`)) {
@@ -41,10 +41,15 @@ export const wardrobeService = {
                 image_path,
                 name: name || null,
                 brand: brand || null,
-                category: category || null,
                 condition: condition || 'good',
                 purchase_price: purchase_price || null,
-                // AI fields intentionally null — filled by classification worker
+                // New fields — AI fills these via classification worker
+                wardrobe_slot: null,  // set by worker
+                fashionclip_main_category: null,
+                fashionclip_sub_category: null,
+                fashionclip_attributes: null,
+                is_accessory: false, // default, overridden by worker
+                // DO NOT write to deprecated columns: category, colors, pattern, fit
             })
             .select()
             .single();
@@ -68,7 +73,7 @@ export const wardrobeService = {
     },
 
     // ── LIST ITEMS (with filters + pagination) ────────────
-    async listItems(userId, { category, season, is_favourite, is_for_sale, page, limit }) {
+    async listItems(userId, { slot, season, is_favourite, is_for_sale, page, limit }) {
         let query = supabase
             .from('wardrobe_items')
             .select('*', { count: 'exact' })
@@ -77,7 +82,7 @@ export const wardrobeService = {
             .order('created_at', { ascending: false });
 
         // Apply optional filters
-        if (category) query = query.eq('category', category);
+        if (slot) query = query.eq('wardrobe_slot', slot);
         if (season) query = query.eq('season', season);
         if (is_favourite !== undefined) query = query.eq('is_favourite', is_favourite);
         if (is_for_sale !== undefined) query = query.eq('is_for_sale', is_for_sale);

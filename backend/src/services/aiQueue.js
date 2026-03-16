@@ -47,11 +47,14 @@ export const aiQueue = {
         });
     },
 
-    async queueOutfitRating({ outfitId, aiResultId }) {
+    async queueOutfitRating({ outfitId, aiResultId, season, occasion, weather }) {
         const { outfit } = getQueues();
         await outfit.add('rate_outfit', {
             outfit_id: outfitId,
             ai_result_id: aiResultId,
+            season: season || null,
+            occasion: occasion || null,
+            weather: weather || null,
         }, {
             jobId: `rate-${outfitId}`,
             attempts: 3,
@@ -72,13 +75,19 @@ export const aiQueue = {
         });
     },
 
-    async queueRecommendationRating({ recommendationId, items, aiResultId, userId }) {
+    async queueRecommendationRating({
+        recommendationId, items, aiResultId, userId,
+        season, occasion, weather
+    }) {
         const { outfit } = getQueues();
         await outfit.add('rate_recommendation', {
             recommendation_id: recommendationId,
-            items,
+            items: items,
             ai_result_id: aiResultId,
             user_id: userId,
+            season: season || null,
+            occasion: occasion || null,
+            weather: weather || null,
         }, {
             jobId: `rec-${recommendationId}`,
             attempts: 3,

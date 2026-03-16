@@ -30,17 +30,25 @@ def classify_clothing(self, item_id: str, image_url: str, ai_result_id: str):
 
         # Build the wardrobe item update payload
         item_updates = {
-            'category':    result.category,
-            'subcategory': result.subcategory,
-            'colors':      result.colors,
-            'pattern':     result.pattern,
-            'fit':         result.fit,
-            'fabric':      result.fabric,
-            'season':      result.season,
+            'wardrobe_slot':              result.wardrobe_slot,
+            'fashionclip_main_category':  result.fashionclip_main_category,
+            'fashionclip_sub_category':   result.fashionclip_sub_category,
+            'fashionclip_attributes':     result.fashionclip_attributes,
+            'fashionclip_description':    result.fashionclip_description,
+            'color_dominant_rgb':         result.color_dominant_rgb,
+            'pattern_strength':           result.pattern_strength,
+            'texture_score':              result.texture_score,
+            'formality_score':            result.formality_score,
+            'is_accessory':               result.is_accessory,
+            'tag':                        result.tag,
         }
-        # Only set embedding if model returns one
-        if result.embedding:
-            item_updates['embedding'] = result.embedding
+
+        # Conditionally add optional fields
+        if result.fashionclip_image_vector:
+            item_updates['fashionclip_image_vector'] = result.fashionclip_image_vector
+        if result.sam_label:
+            item_updates['sam_label']      = result.sam_label
+            item_updates['sam_confidence'] = result.sam_confidence
 
         # Write classification to wardrobe_items
         asyncio.run(update_wardrobe_item(item_id, item_updates))

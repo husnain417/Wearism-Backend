@@ -10,7 +10,7 @@ export const recommendationsService = {
 
     // ── GENERATE RECOMMENDATIONS ────────────────────────
     // Called when user requests a refresh or has no recommendations yet
-    async generateRecommendations(userId, { occasion, season } = {}) {
+    async generateRecommendations(userId, { occasion, season, weather, sample_size = 25 } = {}) {
 
         // Check if fresh recommendations already exist
         const cacheThreshold = new Date(
@@ -32,17 +32,17 @@ export const recommendationsService = {
         // Fetch classified wardrobe items
         const { data: items, error } = await supabase
             .from('wardrobe_items')
-            .select('id, category, subcategory, colors, pattern, fit, season, occasion')
+            .select('id, wardrobe_slot, fashionclip_attributes')
             .eq('user_id', userId)
             .is('deleted_at', null)
-            .not('category', 'is', null); // only classified items
+            .not('wardrobe_slot', 'is', null); // only classified items
 
         if (error) throw error;
 
         if (!items || items.length < 2) {
             throw {
                 statusCode: 400,
-                message: 'Not enough classified wardrobe items to generate recommendations. Add at least 2 items and wait for AI classification.',
+                message: 'Not enough classified wardrobe items. Add at least 1 upperwear and 1 lowerwear item.',
             };
         }
 
@@ -56,7 +56,7 @@ export const recommendationsService = {
         if (combinations.length === 0) {
             throw {
                 statusCode: 400,
-                message: 'Could not generate combinations. Ensure you have both tops and bottoms (or dresses) in your wardrobe.',
+                message: 'Could not generate combinations. Ensure you have upperwear and lowerwear items in your wardrobe.',
             };
         }
 
@@ -98,7 +98,7 @@ export const recommendationsService = {
             // Fetch full item details for the AI rating job
             const { data: itemDetails } = await supabase
                 .from('wardrobe_items')
-                .select('id, category, colors, pattern, fit')
+                .select('id, wardrobe_slot, fashionclip_main_category, fashionclip_attributes, color_dominant_rgb, pattern_strength, texture_score, formality_score, is_accessory, tag')
                 .in('id', combo.item_ids);
 
             // Queue AI rating job
@@ -107,6 +107,9 @@ export const recommendationsService = {
                 items: itemDetails,
                 aiResultId: aiResult.id,
                 userId,
+                season,
+                occasion,
+                weather,
             });
 
             created.push(rec.id);

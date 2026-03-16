@@ -6,13 +6,16 @@ export const generateRecommendationsSchema = {
         properties: {
             occasion: {
                 type: 'string',
-                enum: ['casual', 'business_casual', 'formal', 'athletic',
-                    'outdoor', 'beach', 'evening', 'date_night'],
+                enum: ['casual', 'formal', 'business', 'smart_casual',
+                    'streetwear', 'athleisure', 'old_money', 'party', 'black_tie', 'wedding'],
             },
             season: {
                 type: 'string',
-                enum: ['spring', 'summer', 'autumn', 'winter', 'all_season'],
+                enum: ['spring', 'summer', 'fall', 'winter', 'all_season'],
             },
+            weather: { type: 'string', enum: ['hot', 'warm', 'mild', 'cool', 'cold'] },
+            num_outfits: { type: 'integer', minimum: 1, maximum: 10, default: 3 },
+            sample_size: { type: 'integer', minimum: 5, maximum: 50, default: 25 },
             force_refresh: { type: 'boolean', default: false },
         },
         additionalProperties: false,

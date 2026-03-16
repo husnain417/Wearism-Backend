@@ -20,6 +20,15 @@
    - [Get User Data (GDPR)](#get-authmedata)
    - [Delete Account (GDPR)](#delete-authaccount)
 7. [Recommendations Module (Phase 5)](#7-recommendations-module)
+8. [Social Hub (Phase 6)](#8-social-hub)
+   - [Posts](#posts)
+   - [Comments](#comments)
+   - [Follows](#follows)
+   - [Feed](#feed)
+9. [Marketplace - Vendors (Phase 7)](#9-marketplace---vendors)
+10. [Marketplace - Products (Phase 7)](#10-marketplace---products)
+11. [Marketplace - Cart (Phase 7)](#11-marketplace---cart)
+12. [Marketplace - Orders (Phase 7)](#12-marketplace---orders)
 
 ---
 
@@ -622,4 +631,338 @@ Reverses the save action by setting `is_saved: false` on the recommendation. (No
 ### `POST /recommendations/:id/dismiss`
 **Auth Required:** Yes
 
-Marks a recommendation as dismissed (`is_dismissed: true`). Dismissed recommendations are hidden from standard `GET /recommendations` queries.
+## 8. Social Hub
+
+### Posts
+
+#### `POST /posts`
+**Auth Required:** Yes  
+**Rate Limit:** 20 requests per 1 hour
+
+Creates a new social post. Text content is automatically checked against the internal NSFW filter. 
+
+**Request Body (Example):**
+```json
+{
+  "caption": "Exploring the city in this fit ✨",
+  "outfit_id": "uuid-here",
+  "season": "summer",
+  "visibility": "public",
+  "tags": ["streetwear", "summer"]
+}
+```
+*At least one of `caption`, `image_path`, or `outfit_id` is required. `season`, `weather`, and `visibility` must match predefined enums.*
+
+**Success Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Post created.",
+  "post": {
+    "id": "uuid-here",
+    "caption": "Exploring the city in this fit ✨",
+    "image_url": "https://signed-url.supabase.co/..."
+  }
+}
+```
+
+#### `GET /posts/:id`
+**Auth Required:** Yes
+
+Retrieves a single post, including author details. Also returns `viewer_has_liked` boolean. Returns 404 if post doesn't exist, and 403 if post is `followers_only` and viewer isn't following.
+
+#### `DELETE /posts/:id`
+**Auth Required:** Yes
+
+Soft-deletes a post you own. Automatically triggers feed invalidation so it vanishes from followers' feeds. Returns 404 if post not found or not owned.
+
+#### `GET /posts/user/:userId`
+**Auth Required:** Yes
+
+Paginated list of a specific user's posts. Automatically hides `followers_only` posts if the viewer isn't a follower. Hidden/deleted posts are never returned.
+
+**Params:** `page`, `limit` (max 50).
+
+#### `POST /posts/:id/like`
+**Auth Required:** Yes  
+**Rate Limit:** 100 requests per 1 hour
+
+Idempotent toggle. Will like the post if not liked, or unlike it if already liked. Returns `{ success: true, liked: true|false }`.
+
+#### `POST /posts/:id/report`
+**Auth Required:** Yes  
+**Rate Limit:** 10 requests per 1 hour
+
+Fulfills moderation requirements. Users can report posts for specific reasons (e.g., `spam`, `hate_speech`, `nudity`, `harassment`).
+
+**Request Body:**
+```json
+{
+  "reason": "spam",
+  "detail": "Optional string describing the issue max 300 chars"
+}
+```
+
+---
+
+### Comments
+
+#### `GET /posts/:postId/comments`
+**Auth Required:** Yes
+
+Returns a paginated list of comments on a post. Responses are structured into threads: top-level comments contain a `replies` array containing child comments. 
+
+#### `POST /posts/:postId/comments`
+**Auth Required:** Yes  
+**Rate Limit:** 60 requests per 1 hour
+
+Add a comment or reply to a post. Subject to NSFW filtering.
+
+**Request Body:**
+```json
+{
+  "body": "This looks incredible!",
+  "parent_id": null 
+}
+```
+*Note: To reply, provide the ID of a top-level comment in `parent_id`. Replying to a reply is blocked to prevent deep nesting.*
+
+#### `DELETE /posts/:postId/comments/:commentId`
+**Auth Required:** Yes
+
+Soft-deletes a comment authored by the user.
+
+---
+
+### Follows
+
+#### `POST /follows/:userId`
+**Auth Required:** Yes
+
+Follow another user. If you previously followed and unfollowed, this seamlessly restores the relationship rather than creating duplicate DB rows. Self-following is blocked.
+
+**Success Response:** `{ success: true, following: true }`
+
+#### `DELETE /follows/:userId`
+**Auth Required:** Yes
+
+Unfollow a user. 
+
+#### `GET /follows/:userId/followers`
+**Auth Required:** Yes
+
+Paginated list of a user's followers.
+
+#### `GET /follows/:userId/following`
+**Auth Required:** Yes
+
+Paginated list of users this user follows.
+
+#### `GET /follows/:userId/relationship`
+**Auth Required:** Yes
+
+Check the relationship status between the authenticated viewer and the target user.
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "you_follow_them": true,
+  "they_follow_you": false,
+  "mutual": false
+}
+```
+
+---
+
+### Feed
+
+#### `GET /feed/home`
+**Auth Required:** Yes
+
+Returns a chronologically sorted, paginated feed of posts from users the authenticated user follows, plus their own posts. Backed by a high-performance Redis cache with a 30-minute TTL.
+
+**Params:** `page`, `limit` (max 50)
+
+**Success Response:** Returns `posts` array, `pagination` block, and a `from_cache` boolean for observability.
+
+#### `GET /feed/trending`
+**Auth Required:** Yes
+
+Returns the top trending posts on the platform. The trending score uses a time-decay algorithm (`(likes*1.5 + comments*2 - reports*3) / (age_hours+2)^1.5`) computed offline on a schedule and cached in Redis.
+
+**Params:** `page`, `limit` (max 50)
+
+---
+
+## 9. Marketplace - Vendors
+
+### `POST /vendors/register`
+**Auth Required:** Yes  
+**Rate Limit:** 5 requests per 1 hour
+
+Registers the authenticated user as a vendor. Initial status is `pending`.
+
+**Request Body:**
+```json
+{
+  "shop_name": "My Boutique",
+  "shop_description": "Exclusive vintage collections",
+  "contact_email": "shop@example.com",
+  "contact_phone": "+1234567890",
+  "business_address": "123 Fashion Ave"
+}
+```
+
+### `GET /vendors/me`
+**Auth Required:** Yes
+
+Returns the authenticated user's vendor profile and application status (`pending`, `approved`, `suspended`).
+
+### `PATCH /vendors/me`
+**Auth Required:** Yes (Status: `approved`)
+
+Updates vendor profile details.
+
+### `GET /vendors/me/stats`
+**Auth Required:** Yes (Status: `approved`)
+
+Returns dashboard statistics including total revenue, total sales, and active order counts.
+
+### `GET /vendors/:vendorId`
+**Public Access:** Yes
+
+Returns public profile of an approved vendor.
+
+---
+
+## 10. Marketplace - Products
+
+### `POST /products`
+**Auth Required:** Yes (Status: `approved`)  
+**Rate Limit:** 50 requests per 1 hour
+
+Creates a new product listing. Starts with `status: draft`.
+
+**Request Body:**
+```json
+{
+  "name": "Summer Floral Dress",
+  "description": "Lightweight silk dress",
+  "category": "dresses",
+  "price": 85.00,
+  "stock_quantity": 10,
+  "condition": "new",
+  "tags": ["summer", "floral", "silk"]
+}
+```
+
+### `GET /products`
+**Public Access:** Yes
+
+Browse the product catalog with filters and search. Returns only `active` products with `stock_quantity > 0`.
+
+**Query Parameters:** `page`, `limit`, `category`, `condition`, `min_price`, `max_price`, `vendor_id`, `is_resale`, `search` (full-text), `sort` (newest, price_asc, price_desc).
+
+### `GET /products/:id`
+**Public Access:** Yes
+
+Returns full product details, including all images and public vendor info.
+
+### `PATCH /products/:id/activate`
+**Auth Required:** Yes (Owner)
+
+Publishes a draft product to make it live in the catalog.
+
+### `POST /products/:id/images`
+**Auth Required:** Yes (Owner)
+
+Uploads a product image. Max 6 images per product. `image_path` must start with user's ID.
+
+### `POST /products/resale`
+**Auth Required:** Yes (Status: `approved`)
+
+Converts an existing wardrobe item into a marketplace resale listing.
+
+---
+
+## 11. Marketplace - Cart
+
+### `GET /cart`
+**Auth Required:** Yes
+
+Returns current cart items, subtotal, and stock availability status. Automatically filters out items that are no longer active or in stock.
+
+### `POST /cart/items`
+**Auth Required:** Yes  
+**Rate Limit:** 100 requests per 1 hour
+
+Adds or updates an item in the cart. Self-purchase is blocked.
+
+**Request Body:**
+```json
+{
+  "product_id": "uuid-here",
+  "quantity": 1
+}
+```
+
+### `PATCH /cart/items/:id`
+**Auth Required:** Yes
+
+Updates quantity for a specific cart item.
+
+### `DELETE /cart`
+**Auth Required:** Yes
+
+Clears the user's entire cart.
+
+---
+
+## 12. Marketplace - Orders
+
+### `POST /orders`
+**Auth Required:** Yes  
+**Rate Limit:** 20 requests per 1 hour
+
+Places an order from the current cart. If items belong to multiple vendors, separate orders are created automatically. Supports Cash on Delivery (COD).
+
+**Request Body:**
+```json
+{
+  "delivery_address": "456 Main St",
+  "delivery_city": "New York",
+  "delivery_phone": "+1987654321",
+  "delivery_notes": "Gate code 1234"
+}
+```
+
+### `GET /orders`
+**Auth Required:** Yes
+
+Returns the authenticated user's (buyer) order history.
+
+### `GET /orders/vendor`
+**Auth Required:** Yes (Status: `approved`)
+
+Returns a list of incoming orders for the vendor. Filterable by `status`.
+
+### `PATCH /orders/:id/confirm`
+**Auth Required:** Yes (Vendor Owner)
+
+Vendor confirms a pending order.
+
+### `PATCH /orders/:id/ship`
+**Auth Required:** Yes (Vendor Owner)
+
+Vendor marks an order as shipped.
+
+### `PATCH /orders/:id/deliver`
+**Auth Required:** Yes (Vendor Owner)
+
+Vendor marks an order as delivered. This automatically sets status to `completed` and flags resale items as `sold`.
+
+### `PATCH /orders/:id/cancel`
+**Auth Required:** Yes (Buyer)
+
+Buyer cancels a `pending_confirmation` order. Restores product stock automatically.

@@ -10,12 +10,6 @@ export const createItemSchema = {
             name: { type: 'string', maxLength: 100 },
             brand: { type: 'string', maxLength: 100 },
             // Optional manual overrides — AI fills these if not provided
-            category: {
-                type: 'string', enum: [
-                    'tops', 'bottoms', 'dresses', 'outerwear', 'footwear',
-                    'accessories', 'activewear', 'swimwear', 'underwear', 'sleepwear',
-                ]
-            },
             condition: { type: 'string', enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
             purchase_price: { type: 'number', minimum: 0 },
         },
@@ -30,17 +24,15 @@ export const updateItemSchema = {
         properties: {
             name: { type: 'string', maxLength: 100 },
             brand: { type: 'string', maxLength: 100 },
-            category: {
-                type: 'string', enum: [
-                    'tops', 'bottoms', 'dresses', 'outerwear', 'footwear',
-                    'accessories', 'activewear', 'swimwear', 'underwear', 'sleepwear',
-                ]
+            wardrobe_slot: {
+                type: 'string',
+                enum: ['upperwear', 'outerwear', 'lowerwear', 'accessories']
             },
             subcategory: { type: 'string', maxLength: 100 },
             colors: { type: 'array', items: { type: 'string' }, maxItems: 5 },
             pattern: { type: 'string', maxLength: 50 },
             fit: { type: 'string', enum: ['slim', 'regular', 'relaxed', 'oversized'] },
-            season: { type: 'string', enum: ['spring', 'summer', 'autumn', 'winter', 'all_season'] },
+            season: { type: 'string', enum: ['spring', 'summer', 'fall', 'winter', 'all_season', 'autumn'] },
             condition: { type: 'string', enum: ['new', 'like_new', 'good', 'fair', 'poor'] },
             purchase_price: { type: 'number', minimum: 0 },
             is_favourite: { type: 'boolean' },
@@ -56,7 +48,7 @@ export const listItemsSchema = {
     querystring: {
         type: 'object',
         properties: {
-            category: { type: 'string' },
+            slot: { type: 'string', enum: ['upperwear', 'outerwear', 'lowerwear', 'accessories'] },
             season: { type: 'string' },
             is_favourite: { type: 'boolean' },
             is_for_sale: { type: 'boolean' },

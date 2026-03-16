@@ -1,0 +1,159 @@
+import { supabase } from '../../../config/supabase.js';
+
+const TRANSITIONS = {
+  pending_confirmation: ['confirmed','cancelled'],
+  confirmed:            ['shipped','cancelled'],
+  shipped:              ['delivered'],
+  delivered:            ['completed'],
+};
+
+export const ordersService = {
+
+  async placeOrder(userId, { delivery_address, delivery_city, delivery_phone, delivery_notes }) {
+    const { data: cartItems } = await supabase.from('cart_items')
+      .select(`quantity, products!product_id(
+        id, name, price, primary_image_url, stock_quantity, status, vendor_id)`)
+      .eq('user_id', userId);
+
+    if (!cartItems?.length) throw { statusCode:400, message:'Cart is empty.' };
+
+    for (const item of cartItems) {
+      const p = item.products;
+      if (p.status !== 'active')
+        throw { statusCode:400, message:`${p.name} is no longer available.` };
+      if (p.stock_quantity < item.quantity)
+        throw { statusCode:400, message:`Insufficient stock for ${p.name}.` };
+    }
+
+    const byVendor = cartItems.reduce((acc, item) => {
+      const vid = item.products.vendor_id;
+      (acc[vid] = acc[vid]||[]).push(item);
+      return acc;
+    }, {});
+
+    const createdOrders = [];
+
+    for (const [vendorId, items] of Object.entries(byVendor)) {
+      const total = Number(items.reduce((s,i) => s+(i.products.price*i.quantity), 0).toFixed(2));
+
+      const { data: order, error: oErr } = await supabase.from('orders').insert({
+        buyer_id: userId, vendor_id: vendorId,
+        delivery_address, delivery_city, delivery_phone,
+        delivery_notes: delivery_notes||null,
+        subtotal: total, total_amount: total,
+        payment_method: 'cash_on_delivery', status: 'pending_confirmation',
+      }).select().single();
+
+      if (oErr) throw oErr;
+
+      await supabase.from('order_items').insert(
+        items.map(i => ({
+          order_id:      order.id,
+          product_id:    i.products.id,
+          product_name:  i.products.name,
+          product_image: i.products.primary_image_url,
+          unit_price:    i.products.price,
+          quantity:      i.quantity,
+          line_total:    Number((i.products.price * i.quantity).toFixed(2)),
+        }))
+      );
+
+      // Decrement stock
+      for (const item of items) {
+        await supabase.from('products')
+          .update({ stock_quantity: item.products.stock_quantity - item.quantity })
+          .eq('id', item.products.id);
+      }
+
+      createdOrders.push(order);
+    }
+
+    // Clear cart
+    await supabase.from('cart_items').delete().eq('user_id', userId);
+
+    return { orders: createdOrders, count: createdOrders.length };
+  },
+
+
+  async listBuyerOrders(userId, { page, limit }) {
+    const from = (page-1)*limit;
+    const { data, count, error } = await supabase.from('orders')
+      .select(`*, order_items(*), vendor_profiles!vendor_id(shop_name, shop_logo_url)`,
+               { count:'exact' })
+      .eq('buyer_id', userId).order('created_at',{ascending:false})
+      .range(from, from+limit-1);
+    if (error) throw error;
+    return { orders:data||[], pagination:{total:count,page,limit,total_pages:Math.ceil(count/limit)} };
+  },
+
+
+  async listVendorOrders(vendorId, { page, limit, status }) {
+    const from = (page-1)*limit;
+    let q = supabase.from('orders')
+      .select(`*, order_items(*), profiles!buyer_id(username, avatar_url)`,{count:'exact'})
+      .eq('vendor_id', vendorId).order('created_at',{ascending:false});
+    if (status) q = q.eq('status', status);
+    const { data, count, error } = await q.range(from, from+limit-1);
+    if (error) throw error;
+    return { orders:data||[], pagination:{total:count,page,limit,total_pages:Math.ceil(count/limit)} };
+  },
+
+
+  async updateOrderStatus(vendorId, orderId, newStatus, cancelledReason) {
+    const { data: order } = await supabase.from('orders')
+      .select('id, status').eq('id',orderId).eq('vendor_id',vendorId).single();
+
+    if (!order) throw { statusCode:404, message:'Order not found.' };
+
+    const allowed = TRANSITIONS[order.status]||[];
+    if (!allowed.includes(newStatus))
+      throw { statusCode:400, message:`Cannot transition from ${order.status} to ${newStatus}.` };
+
+    const now = new Date().toISOString();
+    const tsMap = {
+      confirmed: { confirmed_at:now },
+      shipped:   { shipped_at:now   },
+      delivered: { delivered_at:now, completed_at:now, status:'completed' },
+      completed: { completed_at:now },
+      cancelled: { cancelled_at:now, cancelled_reason:cancelledReason||null },
+    };
+
+    const patch = { status: newStatus === 'delivered' ? 'completed' : newStatus, ...tsMap[newStatus] };
+
+    const { data, error } = await supabase.from('orders')
+      .update(patch).eq('id',orderId).select().single();
+    if (error) throw error;
+
+    // Mark resale products as sold when order completes
+    if (patch.status === 'completed') {
+      const { data: oi } = await supabase.from('order_items')
+        .select('product_id').eq('order_id',orderId);
+      for (const item of oi||[]) {
+        await supabase.from('products')
+          .update({ status:'sold' })
+          .eq('id',item.product_id).eq('is_resale',true);
+      }
+    }
+    return data;
+  },
+
+
+  async cancelOrder(userId, orderId) {
+    const { data: order } = await supabase.from('orders')
+      .select('id, status').eq('id',orderId).eq('buyer_id',userId).single();
+    if (!order) throw { statusCode:404, message:'Order not found.' };
+    if (order.status !== 'pending_confirmation')
+      throw { statusCode:400, message:'Only pending orders can be cancelled.' };
+
+    // Restore stock
+    const { data: items } = await supabase.from('order_items')
+      .select('product_id, quantity').eq('order_id',orderId);
+    for (const item of items||[]) {
+      await supabase.rpc('increment_stock', { p_product_id:item.product_id, p_qty:item.quantity });
+    }
+
+    await supabase.from('orders')
+      .update({ status:'cancelled', cancelled_at:new Date().toISOString() })
+      .eq('id',orderId);
+  },
+};
