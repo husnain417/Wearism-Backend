@@ -1,5 +1,5 @@
-// src/modules/recommendations/recommendations.service.js
 import { supabase } from '../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../utils/pagination.js';
 import { aiQueue } from '../../services/aiQueue.js';
 import { generateCombinations } from './combinationEngine.js';
 
@@ -124,8 +124,11 @@ export const recommendationsService = {
 
 
     // ── LIST RECOMMENDATIONS ─────────────────────────────
-    async listRecommendations(userId, { occasion, status, page, limit }) {
-        let query = supabase
+    async listRecommendations(userId, query) {
+        const { page, limit, from } = parsePagination(query);
+        const { occasion, status } = query;
+
+        let supabaseQuery = supabase
             .from('recommendations')
             .select(`
         id, item_ids, occasion,
@@ -137,19 +140,17 @@ export const recommendationsService = {
             .eq('user_id', userId)
             .eq('is_dismissed', false)
             .is('deleted_at', null)
-            .order('ai_rating', { ascending: false, nullsFirst: false });
+            .order('ai_rating', { ascending: false, nullsFirst: false })
+            .range(from, from + limit - 1);
 
         // Filter by occasion
-        if (occasion) query = query.eq('occasion', occasion);
+        if (occasion) supabaseQuery = supabaseQuery.eq('occasion', occasion);
 
         // Filter by status: 'scored' shows only completed AI ratings
-        if (status === 'scored') query = query.eq('ai_status', 'completed');
-        if (status === 'pending') query = query.eq('ai_status', 'pending');
+        if (status === 'scored') supabaseQuery = supabaseQuery.eq('ai_status', 'completed');
+        if (status === 'pending') supabaseQuery = supabaseQuery.eq('ai_status', 'pending');
 
-        const from = (page - 1) * limit;
-        query = query.range(from, from + limit - 1);
-
-        const { data, error, count } = await query;
+        const { data, error, count } = await supabaseQuery;
         if (error) throw error;
 
         // Enrich each recommendation with the full item details
@@ -164,10 +165,7 @@ export const recommendationsService = {
             })
         );
 
-        return {
-            recommendations: enriched,
-            pagination: { total: count, page, limit, total_pages: Math.ceil(count / limit) },
-        };
+        return paginatedResult(enriched, count || 0, page, limit);
     },
 
 

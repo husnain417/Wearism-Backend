@@ -6,31 +6,31 @@ import { registerVendorSchema, updateVendorSchema } from './vendors.schema.js';
 
 export async function vendorsRoutes(fastify) {
 
-  // POST /vendors/register  — authenticated user registers as vendor
   fastify.post('/register', {
     preHandler: [authenticate],
-    schema: registerVendorSchema,
+    schema: { ...registerVendorSchema, tags: ['Marketplace'], summary: 'Register as a vendor' },
   }, vendorsController.register);
 
-  // GET /vendors/me  — own vendor profile (auth required, but NOT requireVendor — pending users need this)
   fastify.get('/me', {
+    schema: { tags: ['Marketplace'], summary: 'Get own vendor profile' },
     preHandler: [authenticate],
   }, vendorsController.getMyProfile);
 
-  // PATCH /vendors/me  — update own profile (must be approved vendor)
   fastify.patch('/me', {
     preHandler: [authenticate, requireVendor],
-    schema: updateVendorSchema,
+    schema: { ...updateVendorSchema, tags: ['Marketplace'], summary: 'Update own vendor profile' },
   }, vendorsController.updateProfile);
 
-  // GET /vendors/me/stats  — dashboard stats (must be approved vendor)
   fastify.get('/me/stats', {
+    schema: { tags: ['Marketplace'], summary: 'Vendor dashboard stats' },
     preHandler: [authenticate, requireVendor],
   }, vendorsController.getDashboardStats);
 
-  // GET /vendors/:vendorId  — public storefront (no auth)
-  fastify.get('/:vendorId', vendorsController.getPublicProfile);
+  fastify.get('/:vendorId', {
+    schema: { tags: ['Marketplace'], summary: 'Get public vendor storefront' },
+  }, vendorsController.getPublicProfile);
 
-  // GET /vendors/:vendorId/products  — products by vendor (no auth)
-  fastify.get('/:vendorId/products', vendorsController.getVendorProducts);
+  fastify.get('/:vendorId/products', {
+    schema: { tags: ['Marketplace'], summary: 'Get all products by a vendor' },
+  }, vendorsController.getVendorProducts);
 }

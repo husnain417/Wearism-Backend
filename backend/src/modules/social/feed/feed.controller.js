@@ -6,12 +6,12 @@ export const feedController = {
     // GET /feed/home
     async getHomeFeed(request, reply) {
         const result = await feedService.getHomeFeed(request.user.sub, request.query);
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     // GET /feed/trending
     async getTrendingFeed(request, reply) {
         const result = await feedService.getTrendingFeed(request.query);
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 };

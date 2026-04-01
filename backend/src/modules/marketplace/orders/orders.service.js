@@ -1,4 +1,6 @@
 import { supabase } from '../../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
+import { sendToUser } from '../../../services/notifications.js';
 
 const TRANSITIONS = {
   pending_confirmation: ['confirmed','cancelled'],
@@ -65,6 +67,13 @@ export const ordersService = {
           .eq('id', item.products.id);
       }
 
+      // Notify vendor
+      sendToUser(vendorId, {
+          title: 'New Order Received',
+          body: `You have received a new order for PKR ${order.total_amount}`,
+          data: { type: 'order_received', orderId: order.id },
+      }).catch(() => {});
+
       createdOrders.push(order);
     }
 
@@ -75,27 +84,29 @@ export const ordersService = {
   },
 
 
-  async listBuyerOrders(userId, { page, limit }) {
-    const from = (page-1)*limit;
+  async listBuyerOrders(userId, query) {
+    const { page, limit, from } = parsePagination(query);
     const { data, count, error } = await supabase.from('orders')
       .select(`*, order_items(*), vendor_profiles!vendor_id(shop_name, shop_logo_url)`,
                { count:'exact' })
       .eq('buyer_id', userId).order('created_at',{ascending:false})
       .range(from, from+limit-1);
     if (error) throw error;
-    return { orders:data||[], pagination:{total:count,page,limit,total_pages:Math.ceil(count/limit)} };
+    return paginatedResult(data || [], count || 0, page, limit);
   },
 
 
-  async listVendorOrders(vendorId, { page, limit, status }) {
-    const from = (page-1)*limit;
+  async listVendorOrders(vendorId, query) {
+    const { page, limit, from } = parsePagination(query);
+    const { status } = query;
     let q = supabase.from('orders')
       .select(`*, order_items(*), profiles!buyer_id(username, avatar_url)`,{count:'exact'})
-      .eq('vendor_id', vendorId).order('created_at',{ascending:false});
+      .eq('vendor_id', vendorId).order('created_at',{ascending:false})
+      .range(from, from + limit - 1);
     if (status) q = q.eq('status', status);
-    const { data, count, error } = await q.range(from, from+limit-1);
+    const { data, count, error } = await q;
     if (error) throw error;
-    return { orders:data||[], pagination:{total:count,page,limit,total_pages:Math.ceil(count/limit)} };
+    return paginatedResult(data || [], count || 0, page, limit);
   },
 
 
@@ -134,6 +145,31 @@ export const ordersService = {
           .eq('id',item.product_id).eq('is_resale',true);
       }
     }
+
+    // Notify buyer of status change
+    if (data) {
+        let title = '';
+        let body = '';
+        if (patch.status === 'confirmed') {
+            title = 'Order Confirmed';
+            body = 'Your order has been confirmed by the vendor';
+        } else if (patch.status === 'shipped') {
+            title = 'Order Shipped';
+            body = 'Your order is on the way';
+        } else if (patch.status === 'completed') {
+            title = 'Order Delivered';
+            body = 'Your order has been delivered';
+        }
+        
+        if (title) {
+            sendToUser(data.buyer_id, {
+                title,
+                body,
+                data: { type: 'order_status', orderId: orderId, status: patch.status },
+            }).catch(() => {});
+        }
+    }
+
     return data;
   },
 

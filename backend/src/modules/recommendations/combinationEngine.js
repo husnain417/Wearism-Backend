@@ -1,86 +1,108 @@
-const MAX_COMBINATIONS = 20; // hard cap per refresh
+const MAX_COMBINATIONS = 20;
 
-// Slots required for a valid outfit combination
-const REQUIRED_SLOTS = ['upperwear', 'lowerwear'];
-const OPTIONAL_SLOTS = ['outerwear', 'accessories'];
+const NEUTRAL_COLORS = ['black', 'white', 'grey', 'beige', 'navy'];
 
 /**
  * Takes classified wardrobe items, returns outfit combinations.
- * Each combination is an array of item IDs.
- *
- * @param {Array} items - wardrobe items (must have id, wardrobe_slot, fashionclip_attributes)
- * @param {Object} options - { occasion, season, maxCombinations }
- * @returns {Array} - array of { item_ids, occasion }
+ * Supports Top + Bottom base and Dress base.
  */
-export function generateCombinations(items, options = {}) {
+export function generateCombinations(items = [], options = {}) {
+    if (!items || items.length === 0) return [];
+    
     const { occasion, season, maxCombinations = MAX_COMBINATIONS } = options;
 
-    // Only work with classified items — skip items where AI hasn't run yet
-    const classified = items.filter(item => item.wardrobe_slot !== null);
+    // 1. Normalize and filter classified items
+    const classified = items.filter(item => {
+        const slot = item.wardrobe_slot || item.category;
+        return slot !== null && slot !== undefined;
+    });
 
-    if (classified.length < 2) return [];
+    if (classified.length === 0) return [];
 
-    // Group by slot
-    const bySlot = groupBySlot(classified);
-
-    // Season filter — check FashionCLIP attributes
-    const filterBySeason = (itemList) => {
-        if (!season) return itemList;
-        return itemList.filter(i => {
-            const attrs = i.fashionclip_attributes || [];
-            return attrs.includes(season) ||
-                attrs.includes('all-season') ||
-                attrs.includes('all_season') ||
-                attrs.length === 0; // unclassified or missing attrs — include anyway
-        });
+    // 2. Season filter
+    const matchesSeason = (item) => {
+        if (!season) return true;
+        const itemSeason = item.season || '';
+        const attrs = item.fashionclip_attributes || [];
+        return itemSeason === season || 
+               itemSeason === 'all_season' || 
+               itemSeason === 'all-season' ||
+               attrs.includes(season) || 
+               attrs.includes('all-season') || 
+               attrs.includes('all_season') ||
+               (attrs.length === 0 && !item.season);
     };
 
-    const upperwear = filterBySeason(bySlot['upperwear'] || []);
-    const lowerwear = filterBySeason(bySlot['lowerwear'] || []);
-    const outerwear = filterBySeason(bySlot['outerwear'] || []);
-    const accessories = filterBySeason(bySlot['accessories'] || []);
+    const filtered = classified.filter(matchesSeason);
 
-    if (upperwear.length === 0 || lowerwear.length === 0) {
-        return []; // Caller handles error mapping
-    }
+    // 3. Group items by logical slots
+    const slots = {
+        upper: [],
+        lower: [],
+        dress: [],
+        outer: [],
+        footwear: [],
+        acc: []
+    };
+
+    filtered.forEach(item => {
+        const s = (item.wardrobe_slot || item.category || '').toLowerCase();
+        if (s === 'upperwear' || s === 'tops') slots.upper.push(item);
+        else if (s === 'lowerwear' || s === 'bottoms') slots.lower.push(item);
+        else if (s === 'dresses') slots.dress.push(item);
+        else if (s === 'outerwear') slots.outer.push(item);
+        else if (s === 'footwear' || s === 'shoes') slots.footwear.push(item);
+        else slots.acc.push(item);
+    });
 
     const combinations = [];
 
-    // Simple nested loop to generate combinations: Top + Bottom + [Outerwear] + [Accessory]
-    for (const top of upperwear) {
-        for (const bottom of lowerwear) {
+    // 4. Helper for neutral preference
+    const pickBest = (list, baseColors) => {
+        if (list.length === 0) return null;
+        const hasNeutralBase = baseColors.some(c => NEUTRAL_COLORS.includes(c.toLowerCase()));
+        if (hasNeutralBase) return list[0]; // Already safe, any will do
+        
+        const neutral = list.find(i => 
+            (i.colors || []).some(c => NEUTRAL_COLORS.includes(c.toLowerCase()))
+        );
+        return neutral || list[0];
+    };
+
+    // 5. Generate Top + Bottom Combinations
+    for (const upper of slots.upper) {
+        for (const lower of slots.lower) {
             if (combinations.length >= maxCombinations) break;
+            
+            const baseColors = [...(upper.colors || []), ...(lower.colors || [])];
+            const item_ids = [upper.id, lower.id];
 
-            const item_ids = [top.id, bottom.id];
+            const out = pickBest(slots.outer, baseColors);
+            if (out) item_ids.push(out.id);
 
-            // Optionally add one outerwear item
-            if (outerwear.length > 0) {
-                // Heuristic: pick one (could be randomized or color-matched later)
-                item_ids.push(outerwear[Math.floor(Math.random() * outerwear.length)].id);
-            }
-
-            // Optionally add one accessory/shoes (everything in accessories slot)
-            if (accessories.length > 0) {
-                item_ids.push(accessories[Math.floor(Math.random() * accessories.length)].id);
-            }
+            const foot = pickBest(slots.footwear, baseColors);
+            if (foot) item_ids.push(foot.id);
 
             combinations.push({ item_ids, occasion });
         }
+    }
+
+    // 6. Generate Dress Combinations
+    for (const dress of slots.dress) {
         if (combinations.length >= maxCombinations) break;
+        
+        const baseColors = dress.colors || [];
+        const item_ids = [dress.id];
+
+        const out = pickBest(slots.outer, baseColors);
+        if (out) item_ids.push(out.id);
+
+        const foot = pickBest(slots.footwear, baseColors);
+        if (foot) item_ids.push(foot.id);
+
+        combinations.push({ item_ids, occasion });
     }
 
     return combinations;
-}
-
-
-// ── HELPERS ────────────────────────────────────────────
-
-function groupBySlot(items) {
-    return items.reduce((acc, item) => {
-        const slot = item.wardrobe_slot || 'accessories';
-        if (!acc[slot]) acc[slot] = [];
-        acc[slot].push(item);
-        return acc;
-    }, {});
 }
 

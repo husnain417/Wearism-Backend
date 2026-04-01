@@ -1,4 +1,5 @@
 // src/modules/social/comments/comments.schema.js
+import { paginationQuery } from '../../../utils/validate.js';
 
 export const createCommentSchema = {
     body: {
@@ -15,9 +16,7 @@ export const createCommentSchema = {
 export const listCommentsSchema = {
     querystring: {
         type: 'object',
-        properties: {
-            page: { type: 'integer', minimum: 1, default: 1 },
-            limit: { type: 'integer', minimum: 1, maximum: 50, default: 20 },
-        },
+        properties: { ...paginationQuery },
+        additionalProperties: false,
     },
 };

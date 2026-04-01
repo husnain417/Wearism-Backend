@@ -188,17 +188,17 @@ describe('Phase 3 — Wardrobe & Outfit Module', () => {
             expect(res.statusCode).toBe(400);
         });
 
-        it('returns 400 if category is an invalid enum value', async () => {
+        it('returns 400 if condition is an invalid enum value', async () => {
             const res = await app.inject({
                 method: 'POST',
                 url: '/wardrobe/items',
                 headers: { authorization: 'Bearer valid_token' },
-                payload: { ...validPayload, category: 'hat' },
+                payload: { ...validPayload, condition: 'terrible' },
             });
 
             expect(res.statusCode).toBe(400);
             const body = JSON.parse(res.payload);
-            expect(body.message).toContain('category');
+            expect(body.message).toContain('condition');
         });
 
         it('rejects additionalProperties (unknown fields not silently accepted)', async () => {
@@ -222,9 +222,9 @@ describe('Phase 3 — Wardrobe & Outfit Module', () => {
     describe('GET /wardrobe/items', () => {
         it('returns paginated list of items', async () => {
             mockWardrobeService.listItems.mockResolvedValueOnce({
-                items: [
-                    { id: 'item-1', name: 'Shirt', category: 'tops' },
-                    { id: 'item-2', name: 'Jeans', category: 'bottoms' },
+                data: [
+                    { id: 'item-1', name: 'Shirt', wardrobe_slot: 'upperwear' },
+                    { id: 'item-2', name: 'Jeans', wardrobe_slot: 'lowerwear' },
                 ],
                 pagination: { total: 2, page: 1, limit: 20, total_pages: 1 },
             });
@@ -237,25 +237,24 @@ describe('Phase 3 — Wardrobe & Outfit Module', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.success).toBe(true);
-            expect(body.items).toHaveLength(2);
+            expect(body.data).toHaveLength(2);
             expect(body.pagination.total).toBe(2);
             expect(body.pagination.total_pages).toBe(1);
         });
 
         it('passes filter parameters to the service', async () => {
             mockWardrobeService.listItems.mockResolvedValueOnce({
-                items: [], pagination: { total: 0, page: 1, limit: 20, total_pages: 0 },
+                data: [], pagination: { total: 0, page: 1, limit: 20, total_pages: 0 },
             });
 
             await app.inject({
                 method: 'GET',
-                url: '/wardrobe/items?category=tops&is_favourite=true',
+                url: '/wardrobe/items?slot=upperwear&is_favourite=true',
                 headers: { authorization: 'Bearer valid_token' },
             });
 
             expect(mockWardrobeService.listItems).toHaveBeenCalledWith('user-aaa', expect.objectContaining({
-                category: 'tops',
+                slot: 'upperwear',
                 is_favourite: true,
             }));
         });
@@ -426,7 +425,7 @@ describe('Phase 3 — Wardrobe & Outfit Module', () => {
     describe('POST /wardrobe/outfits', () => {
         const validOutfit = {
             name: 'Monday Office Look',
-            occasion: 'business_casual',
+            occasion: 'business',
             item_ids: [
                 '550e8400-e29b-41d4-a716-446655440000',
                 '660e8400-e29b-41d4-a716-446655440001',
@@ -510,7 +509,7 @@ describe('Phase 3 — Wardrobe & Outfit Module', () => {
     describe('GET /wardrobe/outfits', () => {
         it('returns paginated list of outfits', async () => {
             mockOutfitService.listOutfits.mockResolvedValueOnce({
-                outfits: [
+                data: [
                     { id: 'outfit-1', name: 'Casual', occasion: 'casual' },
                 ],
                 pagination: { total: 1, page: 1, limit: 20, total_pages: 1 },
@@ -524,7 +523,7 @@ describe('Phase 3 — Wardrobe & Outfit Module', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.outfits).toHaveLength(1);
+            expect(body.data).toHaveLength(1);
             expect(body.pagination.total).toBe(1);
         });
     });

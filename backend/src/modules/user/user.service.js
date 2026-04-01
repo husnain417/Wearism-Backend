@@ -11,15 +11,28 @@ export const userService = {
         gender, age_range, height_cm, weight_kg,
         body_type, skin_tone,
         gdpr_consent, gdpr_consent_date,
-        created_at, updated_at,
-        get_profile_completion(profiles)
+        created_at, updated_at
       `)
             .eq('id', userId)
             .is('deleted_at', null) // never return soft-deleted profiles
             .single();
 
         if (error) throw error;
-        return data;
+
+        // Calculate profile completion score (same logic as SQL function)
+        const fields = [
+            data.full_name,
+            data.avatar_url,
+            data.gender,
+            data.age_range,
+            data.height_cm,
+            data.body_type,
+            data.skin_tone,
+        ];
+        const filled = fields.filter((f) => f !== null && f !== '').length;
+        const completion = Math.round((filled / fields.length) * 100);
+
+        return { ...data, profile_completion: completion };
     },
 
     // ── UPDATE PROFILE ───────────────────────────────────

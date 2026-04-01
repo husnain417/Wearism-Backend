@@ -51,11 +51,41 @@ When a user logs in or signs up, you will receive an `access_token` and a `refre
 2. **Refresh Token:** Long-lived. Store this securely on the device (e.g., Secure Store in React Native or HttpOnly cookies). When the `access_token` expires (the server returns a `401 Unauthorized`), call the `/auth/refresh` endpoint to get a new pair invisibly to the user.
 
 ### 1.3 Response Format
-All successful responses are structured with a `success: true` wrapper:
+All successful responses are structured with a `success: true` wrapper for non-paginated endpoints:
 ```json
 {
   "success": true,
   "data": { ... } // or "user", "session", "message"
+}
+```
+
+**Paginated Response Format (Phase 8 Standard):**
+```json
+{
+  "data": [ ... ],
+  "pagination": {
+    "total": 42,
+    "page": 1,
+    "limit": 20,
+    "total_pages": 3,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
+
+**Paginated Response Format (Phase 8 Standard):**
+```json
+{
+  "data": [ ... ],
+  "pagination": {
+    "total": 42,
+    "page": 1,
+    "limit": 20,
+    "total_pages": 3,
+    "has_next": true,
+    "has_prev": false
+  }
 }
 ```
 

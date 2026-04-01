@@ -1,16 +1,30 @@
 // src/modules/social/posts/posts.service.js
 import { supabase } from '../../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
 import { checkPost } from '../../../services/nsfwFilter.js';
 import { invalidateFollowerFeeds } from '../../../services/feedCache.js';
+import { sendToUser } from '../../../services/notifications.js';
 
 const MAX_CAPTION_LENGTH = 500;
 const MAX_TAGS = 10;
 
+// ── Helper: Generate signed URL for a post image ────────────────
+async function signPostUrl(imagePath) {
+    if (!imagePath) return null;
+    const { data, error } = await supabase.storage
+        .from('posts')
+        .createSignedUrl(imagePath, 60 * 60 * 24 * 365); // 1 year
+    return data?.signedUrl || null;
+}
+
 export const postsService = {
 
     // ── CREATE POST ───────────────────────────────────────────
-    async createPost(userId, { caption, image_path, outfit_id, occasion,
-        season, weather, tags, visibility }) {
+    async createPost(userId, { post_id, caption, image_path, outfit_id, occasion,
+        season, weather, tags, visibility }, file) {
+
+        console.log('FILE received:', file ? file.filename : 'NO FILE');
+        console.log('image_path received:', image_path);
 
         // NSFW check on caption + tags
         const nsfw = checkPost({ caption, tags });
@@ -18,25 +32,34 @@ export const postsService = {
             throw { statusCode: 400, message: `Post blocked: ${nsfw.reason}` };
         }
 
-        // Generate signed image URL if image_path provided
+        // Upload image to Supabase Storage if file provided
         let image_url = null;
-        if (image_path) {
+        if (file && image_path) {
             // Validate path ownership
             if (!image_path.startsWith(`${userId}/`)) {
                 throw { statusCode: 403, message: 'Invalid image path.' };
             }
-            const { data: signed } = await supabase.storage
+
+            const buffer = Buffer.isBuffer(file) ? file : Buffer.from(file);
+
+            const { error: uploadError } = await supabase.storage
                 .from('posts')
-                .createSignedUrl(image_path, 60 * 60 * 24 * 365); // 1-year signed URL
-            image_url = signed?.signedUrl || null;
+                .upload(image_path, buffer, {
+                    contentType: 'image/jpeg',
+                    upsert: true,
+                });
+
+            if (uploadError) throw uploadError;
+            if (uploadError) throw uploadError;
         }
 
         const { data: post, error } = await supabase
             .from('posts')
             .insert({
+                id: post_id || undefined, // Use frontend generated ID if provided
                 user_id: userId,
                 caption: caption || null,
-                image_url,
+                image_url: null, // Always null in DB, generated at read-time
                 image_path: image_path || null,
                 outfit_id: outfit_id || null,
                 occasion: occasion || null,
@@ -45,6 +68,7 @@ export const postsService = {
                 tags: tags || [],
                 visibility: visibility || 'public',
                 is_nsfw_flagged: nsfw.flagged,
+                is_hidden: false, // Explicitly set to false
             })
             .select(`*, profiles!user_id(id, full_name, avatar_url)`)
             .single();
@@ -97,7 +121,14 @@ export const postsService = {
             .eq('post_id', postId)
             .eq('user_id', requestingUserId);
 
-        return { ...data, viewer_has_liked: liked > 0 };
+        // Generate signed URL
+        const signedUrl = await signPostUrl(data.image_path);
+
+        return { 
+            ...data, 
+            image_url: signedUrl,
+            viewer_has_liked: liked > 0 
+        };
     },
 
 
@@ -117,31 +148,35 @@ export const postsService = {
 
 
     // ── LIST USER POSTS ───────────────────────────────────────
-    async listUserPosts(targetUserId, requestingUserId, { page, limit }) {
+    async listUserPosts(targetUserId, requestingUserId, query) {
+        const { page, limit, from } = parsePagination(query);
         const isSelf = targetUserId === requestingUserId;
 
-        let query = supabase
+        let supabaseQuery = supabase
             .from('posts')
             .select('*, profiles!user_id(id, full_name, avatar_url)', { count: 'exact' })
             .eq('user_id', targetUserId)
             .is('deleted_at', null)
             .eq('is_hidden', false)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(from, from + limit - 1);
 
         if (!isSelf) {
-            query = query.in('visibility', ['public']);
+            supabaseQuery = supabaseQuery.in('visibility', ['public']);
         }
 
-        const from = (page - 1) * limit;
-        query = query.range(from, from + limit - 1);
-
-        const { data, error, count } = await query;
+        const { data, error, count } = await supabaseQuery;
         if (error) throw error;
 
-        return {
-            posts: data || [],
-            pagination: { total: count, page, limit, total_pages: Math.ceil(count / limit) },
-        };
+        // Generate signed URLs for all posts in parallel
+        const postsWithSignedUrls = await Promise.all(
+            (data || []).map(async (post) => ({
+                ...post,
+                image_url: await signPostUrl(post.image_path),
+            }))
+        );
+
+        return paginatedResult(postsWithSignedUrls, count || 0, page, limit);
     },
 
 
@@ -163,6 +198,22 @@ export const postsService = {
         } else {
             // Like
             await supabase.from('post_likes').insert({ post_id: postId, user_id: userId });
+            
+            // Notify post owner
+            Promise.all([
+                supabase.from('posts').select('user_id').eq('id', postId).single(),
+                supabase.from('profiles').select('full_name').eq('id', userId).single()
+            ]).then(([{ data: post }, { data: profile }]) => {
+                if (post && post.user_id !== userId) {
+                    const likerName = profile?.full_name || 'Someone';
+                    sendToUser(post.user_id, {
+                        title: 'New Like',
+                        body: `@${likerName} liked your post`,
+                        data: { type: 'like', postId: postId },
+                    }).catch(() => {});
+                }
+            }).catch(() => {});
+
             return { liked: true };
         }
     },

@@ -18,13 +18,13 @@ export const followsController = {
     // GET /follows/:userId/followers
     async listFollowers(request, reply) {
         const result = await followsService.listFollowers(request.params.userId, request.query);
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     // GET /follows/:userId/following
     async listFollowing(request, reply) {
         const result = await followsService.listFollowing(request.params.userId, request.query);
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     // GET /follows/:userId/relationship

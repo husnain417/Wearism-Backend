@@ -18,7 +18,7 @@ export const loginSchema = {
         type: 'object',
         required: ['email', 'password'],
         properties: {
-            email: { type: 'string', format: 'email' },
+            email: { type: 'string', format: 'email', maxLength: 254 },
             password: { type: 'string', minLength: 1 },
         },
         additionalProperties: false,
@@ -41,7 +41,19 @@ export const forgotPasswordSchema = {
         type: 'object',
         required: ['email'],
         properties: {
-            email: { type: 'string', format: 'email' },
+            email: { type: 'string', format: 'email', maxLength: 254 },
+        },
+        additionalProperties: false,
+    },
+};
+
+export const updatePasswordSchema = {
+    body: {
+        type: 'object',
+        required: ['password'],
+        properties: {
+            // Must match frontend minimum constraints
+            password: { type: 'string', minLength: 6, maxLength: 72 },
         },
         additionalProperties: false,
     },

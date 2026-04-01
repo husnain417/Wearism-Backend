@@ -11,6 +11,7 @@ _no_ns = ConfigDict(protected_namespaces=())
 class ClassifyClothingRequest(BaseModel):
     image_url: str = Field(..., description='Signed Supabase Storage URL')
     item_id: str   = Field(..., description='UUID of the wardrobe item')
+    ai_result_id: str = Field(..., description='UUID of the ai_results row')
 
 
 class ClassifyClothingResponse(BaseModel):
@@ -64,12 +65,31 @@ class UserProfile(BaseModel):
 
 class RateOutfitRequest(BaseModel):
     outfit_id:    str
+    ai_result_id: str
     items:        List[OutfitItem]
     user_profile: Optional[UserProfile] = None
     # Context fields needed by Rating Engine
     season:       Optional[str] = None  # 'spring'|'summer'|'fall'|'winter'
     occasion:     Optional[str] = None  # 'casual'|'formal'|'business'|...
     weather:      Optional[str] = None  # 'hot'|'warm'|'mild'|'cool'|'cold'
+
+# ── QUEUE ENDPOINT REQUESTS ──────────────────────────────
+
+class QueueRateOutfitRequest(BaseModel):
+    outfit_id:    str
+    ai_result_id: str
+    season:       Optional[str] = None
+    occasion:     Optional[str] = None
+    weather:      Optional[str] = None
+
+class QueueRateRecommendationRequest(BaseModel):
+    recommendation_id: str
+    items:        List[OutfitItem]
+    ai_result_id: str
+    user_id:      str
+    season:       Optional[str] = None
+    occasion:     Optional[str] = None
+    weather:      Optional[str] = None
 
 
 class RatingBreakdown(BaseModel):
@@ -97,6 +117,7 @@ class RateOutfitResponse(BaseModel):
 class AnalyseUserRequest(BaseModel):
     image_url: str
     user_id:   str
+    ai_result_id: str
 
 
 class AnalyseUserResponse(BaseModel):

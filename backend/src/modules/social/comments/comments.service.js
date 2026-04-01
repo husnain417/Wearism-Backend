@@ -1,6 +1,7 @@
-// src/modules/social/comments/comments.service.js
 import { supabase } from '../../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
 import { checkContent } from '../../../services/nsfwFilter.js';
+import { sendToUser } from '../../../services/notifications.js';
 
 export const commentsService = {
 
@@ -42,14 +43,51 @@ export const commentsService = {
             .single();
 
         if (error) throw error;
+
+        // Notification logic (fire-and-forget)
+        if (parent_id) {
+            // Reply to a comment -> Notify parent comment author
+            supabase.from('post_comments').select('user_id').eq('id', parent_id).single()
+                .then(({ data: parent }) => {
+                    if (parent && parent.user_id !== userId) {
+                        supabase.from('profiles').select('full_name').eq('id', userId).single()
+                            .then(({ data: profile }) => {
+                                const commenterName = profile?.full_name || 'Someone';
+                                sendToUser(parent.user_id, {
+                                    title: 'New Reply',
+                                    body: `@${commenterName} replied to your comment`,
+                                    data: { type: 'comment_reply', postId, commentId: data.id },
+                                }).catch(() => {});
+                            }).catch(() => {});
+                    }
+                }).catch(() => {});
+        } else {
+            // Top-level comment -> Notify post author
+            supabase.from('posts').select('user_id').eq('id', postId).single()
+                .then(({ data: post }) => {
+                    if (post && post.user_id !== userId) {
+                        supabase.from('profiles').select('full_name').eq('id', userId).single()
+                            .then(({ data: profile }) => {
+                                const commenterName = profile?.full_name || 'Someone';
+                                sendToUser(post.user_id, {
+                                    title: 'New Comment',
+                                    body: `@${commenterName} commented on your post`,
+                                    data: { type: 'comment', postId, commentId: data.id },
+                                }).catch(() => {});
+                            }).catch(() => {});
+                    }
+                }).catch(() => {});
+        }
+
         return data;
     },
 
 
     // ── LIST COMMENTS (with replies nested) ──────────────────
-    async listComments(postId, { page, limit }) {
+    async listComments(postId, query) {
+        const { page, limit, from } = parsePagination(query);
+
         // Fetch top-level comments
-        const from = (page - 1) * limit;
         const { data: topLevel, error, count } = await supabase
             .from('post_comments')
             .select(`*, profiles!user_id(id, full_name, avatar_url)`, { count: 'exact' })
@@ -62,7 +100,7 @@ export const commentsService = {
 
         if (error) throw error;
         if (!topLevel || topLevel.length === 0) {
-            return { comments: [], pagination: { total: 0, page, limit, total_pages: 0 } };
+            return paginatedResult([], 0, page, limit);
         }
 
         // Fetch replies for these comments in one query
@@ -82,12 +120,12 @@ export const commentsService = {
             return acc;
         }, {});
 
-        const comments = topLevel.map(c => ({
+        const combined = topLevel.map(c => ({
             ...c,
             replies: replyMap[c.id] || [],
         }));
 
-        return { comments, pagination: { total: count, page, limit, total_pages: Math.ceil(count / limit) } };
+        return paginatedResult(combined, count || 0, page, limit);
     },
 
 

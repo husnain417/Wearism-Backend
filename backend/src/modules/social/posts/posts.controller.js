@@ -5,7 +5,11 @@ export const postsController = {
 
     // POST /posts
     async createPost(request, reply) {
-        const post = await postsService.createPost(request.user.sub, request.body);
+        console.log('BODY KEYS:', Object.keys(request.body || {}));
+        console.log('FILE FIELD:', request.body?.file);
+        
+        const file = request.body?.file;
+        const post = await postsService.createPost(request.user.sub, request.body, file);
         return reply.status(201).send({ success: true, post });
     },
 
@@ -28,7 +32,7 @@ export const postsController = {
             request.user.sub,
             request.query,
         );
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     // POST /posts/:id/like

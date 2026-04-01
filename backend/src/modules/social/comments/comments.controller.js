@@ -9,7 +9,7 @@ export const commentsController = {
             request.params.postId,
             request.query,
         );
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     // POST /posts/:postId/comments

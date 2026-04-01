@@ -67,7 +67,7 @@ export async function getUserFeed(userId, { page = 1, limit = 20 } = {}) {
     const from = (page - 1) * limit;
     return {
         posts: feed.slice(from, from + limit),
-        pagination: { total: feed.length, page, limit, total_pages: Math.ceil(feed.length / limit) },
+        total: feed.length,
         from_cache: cached !== null,
     };
 }

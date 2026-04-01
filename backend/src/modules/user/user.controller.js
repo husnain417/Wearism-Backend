@@ -1,9 +1,31 @@
 import { userService } from './user.service.js';
+import { supabase } from '../../config/supabase.js';
 
 export const userController = {
     // GET /user/profile
     async getProfile(request, reply) {
-        const profile = await userService.getProfile(request.user.sub);
+        const userId = request.user.sub;
+        const profile = await userService.getProfile(userId);
+
+        // Fetch social counts and recent posts in parallel
+        const [
+            { count: followersCount },
+            { count: followingCount },
+            { count: postsCount },
+            { data: recentPosts },
+        ] = await Promise.all([
+            supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
+            supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+            supabase.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+            supabase.from('posts')
+                .select('id, image_url, created_at')
+                .eq('user_id', userId)
+                .is('deleted_at', null)
+                .order('created_at', { ascending: false })
+                .limit(9),
+        ]);
+
+        console.log('[Profile] Recent posts:', JSON.stringify(recentPosts, null, 2));
 
         return reply.send({
             success: true,
@@ -19,8 +41,12 @@ export const userController = {
                 body_type: profile.body_type,
                 skin_tone: profile.skin_tone,
                 created_at: profile.created_at,
+                followers_count: followersCount ?? 0,
+                following_count: followingCount ?? 0,
+                posts_count: postsCount ?? 0,
+                recent_posts: recentPosts ?? [],
             },
-            completion_score: profile.get_profile_completion,
+            completion_score: profile.profile_completion ?? 0,
         });
     },
 

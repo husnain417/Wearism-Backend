@@ -1,0 +1,34 @@
+    Expected: 400
+    Received: 202
+
+      268 |             });
+--
+    Expected: "user-aaa", ObjectContaining {"limit": 10, "page": 1, "status": "scored"}
+    Received: "user-aaa", {"limit": 20, "page": 1, "status": "scored"}
+
+    Number of calls: 1
+--
+    Received has value: undefined
+
+      478 |             expect(res.statusCode).toBe(200);
+--
+    Received has value: undefined
+
+      641 |
+--
+    Received has value: undefined
+
+      933 |             expect(res.statusCode).toBe(200);
+--
+    Received has value: undefined
+
+      1036 |             expect(res.statusCode).toBe(200);
+--
+    Received has value: undefined
+
+      1102 |             expect(res.statusCode).toBe(200);
+--
+    Expected: 429
+    Received: 500
+
+      149 |

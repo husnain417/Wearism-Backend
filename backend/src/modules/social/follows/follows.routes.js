@@ -16,30 +16,29 @@ const paginationSchema = {
 export async function followsRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
 
-    // Follow a user
-    fastify.post('/:userId', { preHandler: [authenticate, validateUUID] },
-        followsController.follow,
-    );
+    fastify.post('/:userId', {
+        schema: { tags: ['Social'], summary: 'Follow a user' },
+        preHandler: [authenticate, validateUUID],
+        config: { rateLimit: { max: 30, timeWindow: '1 hour' } },
+    }, followsController.follow);
 
-    // Unfollow a user
-    fastify.delete('/:userId', { preHandler: [authenticate, validateUUID] },
-        followsController.unfollow,
-    );
+    fastify.delete('/:userId', {
+        schema: { tags: ['Social'], summary: 'Unfollow a user' },
+        preHandler: [authenticate, validateUUID],
+    }, followsController.unfollow);
 
-    // List followers of a user
     fastify.get('/:userId/followers', {
-        schema: paginationSchema,
+        schema: { ...paginationSchema, tags: ['Social'], summary: 'List followers of a user' },
         preHandler: [authenticate, validateUUID],
     }, followsController.listFollowers);
 
-    // List accounts a user is following
     fastify.get('/:userId/following', {
-        schema: paginationSchema,
+        schema: { ...paginationSchema, tags: ['Social'], summary: 'List accounts a user is following' },
         preHandler: [authenticate, validateUUID],
     }, followsController.listFollowing);
 
-    // Viewer ↔ target relationship
-    fastify.get('/:userId/relationship', { preHandler: [authenticate, validateUUID] },
-        followsController.getRelationship,
-    );
+    fastify.get('/:userId/relationship', {
+        schema: { tags: ['Social'], summary: 'Get follow relationship between viewer and target' },
+        preHandler: [authenticate, validateUUID],
+    }, followsController.getRelationship);
 }

@@ -1,3 +1,5 @@
+import { successResponse } from '../../utils/validate.js';
+
 export const updateProfileSchema = {
     body: {
         type: 'object',
@@ -30,13 +32,27 @@ export const updateProfileSchema = {
 
 export const getProfileSchema = {
     response: {
-        200: {
-            type: 'object',
-            properties: {
-                success: { type: 'boolean' },
-                profile: { type: 'object' },
-                completion_score: { type: 'integer' },
+        200: successResponse({
+            profile: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string', format: 'uuid' },
+                    email: { type: 'string', format: 'email' },
+                    full_name: { type: 'string', nullable: true },
+                    avatar_url: { type: 'string', nullable: true },
+                    gender: { type: 'string', nullable: true },
+                    age_range: { type: 'string', nullable: true },
+                    height_cm: { type: 'integer', nullable: true },
+                    weight_kg: { type: 'number', nullable: true },
+                    body_type: { type: 'string', nullable: true },
+                    skin_tone: { type: 'string', nullable: true },
+                    created_at: { type: 'string', format: 'date-time' },
+                    followers_count: { type: 'integer' },
+                    following_count: { type: 'integer' },
+                    posts_count: { type: 'integer' },
+                },
             },
-        },
+            completion_score: { type: 'integer' },
+        }),
     },
 };

@@ -15,9 +15,13 @@ const paginationSchema = {
 export async function feedRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
 
-    // Personalised home feed (from followed users, Redis-cached)
-    fastify.get('/home', { schema: paginationSchema }, feedController.getHomeFeed);
+    fastify.get('/home', {
+        schema: { ...paginationSchema, tags: ['Feed'], summary: 'Personalised home feed (Redis-cached)' },
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    }, feedController.getHomeFeed);
 
-    // Trending feed (score-ranked, Redis-cached)
-    fastify.get('/trending', { schema: paginationSchema }, feedController.getTrendingFeed);
+    fastify.get('/trending', {
+        schema: { ...paginationSchema, tags: ['Feed'], summary: 'Trending feed (score-ranked, Redis-cached)' },
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    }, feedController.getTrendingFeed);
 }

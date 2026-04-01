@@ -1,4 +1,5 @@
 import { supabase } from '../../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
 
 const MAX_IMAGES = 6;
 
@@ -20,13 +21,16 @@ export const productsService = {
   },
 
 
-  async browseProducts({ page=1, limit=20, category, condition, min_price,
-                          max_price, vendor_id, is_resale, search, sort }) {
+  async browseProducts(query) {
+    const { page, limit, from } = parsePagination(query);
+    const { category, condition, min_price, max_price, vendor_id, is_resale, search, sort } = query;
+
     let q = supabase.from('products')
       .select(`id, name, category, condition, price, original_price,
         primary_image_url, stock_quantity, is_resale, created_at,
         vendor_profiles!vendor_id(id, shop_name, shop_logo_url)`, { count:'exact' })
-      .eq('status','active').is('deleted_at',null).gt('stock_quantity',0);
+      .eq('status','active').is('deleted_at',null).gt('stock_quantity',0)
+      .range(from, from + limit - 1);
 
     if (category)  q = q.eq('category', category);
     if (condition) q = q.eq('condition', condition);
@@ -44,11 +48,10 @@ export const productsService = {
     const { col, asc } = sortMap[sort] || sortMap.newest;
     q = q.order(col, { ascending: asc });
 
-    const from = (page-1)*limit;
-    const { data, error, count } = await q.range(from, from+limit-1);
+    const { data, error, count } = await q;
     if (error) throw error;
 
-    return { products: data||[], pagination: { total:count, page, limit, total_pages:Math.ceil(count/limit) } };
+    return paginatedResult(data || [], count || 0, page, limit);
   },
 
 

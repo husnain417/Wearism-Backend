@@ -38,21 +38,23 @@ export const updateProductSchema = {
   },
 };
 
+import { paginationQuery } from '../../../utils/validate.js';
+
 export const browseProductsSchema = {
   querystring: {
     type: 'object',
     properties: {
-      page:       { type: 'integer', minimum: 1, default: 1 },
-      limit:      { type: 'integer', minimum: 1, maximum: 50, default: 20 },
-      category:   { type: 'string' },
-      condition:  { type: 'string' },
-      min_price:  { type: 'number' },
-      max_price:  { type: 'number' },
-      vendor_id:  { type: 'string' },
+      ...paginationQuery,
+      category:   { type: 'string', maxLength: 50 },
+      condition:  { type: 'string', maxLength: 20 },
+      min_price:  { type: 'number', minimum: 0 },
+      max_price:  { type: 'number', minimum: 0 },
+      vendor_id:  { type: 'string', format: 'uuid' },
       is_resale:  { type: 'boolean' },
-      search:     { type: 'string' },
+      search:     { type: 'string', maxLength: 100 },
       sort:       { type: 'string', enum: ['newest','price_asc','price_desc'], default: 'newest' },
     },
+    additionalProperties: false,
   },
 };
 
@@ -61,7 +63,7 @@ export const addImageSchema = {
     type: 'object',
     required: ['image_path'],
     properties: {
-      image_path: { type: 'string' },
+      image_path: { type: 'string', maxLength: 500 },
       is_primary: { type: 'boolean', default: false },
     },
     additionalProperties: false,

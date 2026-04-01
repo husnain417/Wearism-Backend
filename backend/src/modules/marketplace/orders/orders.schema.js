@@ -1,4 +1,5 @@
 // src/modules/marketplace/orders/orders.schema.js
+import { paginationQuery } from '../../../utils/validate.js';
 
 export const placeOrderSchema = {
   body: {
@@ -18,10 +19,10 @@ export const listOrdersSchema = {
   querystring: {
     type: 'object',
     properties: {
-      page:   { type: 'integer', minimum: 1, default: 1 },
-      limit:  { type: 'integer', minimum: 1, maximum: 50, default: 20 },
+      ...paginationQuery,
       status: { type: 'string', enum: ['pending_confirmation','confirmed','shipped','delivered','completed','cancelled'] },
     },
+    additionalProperties: false,
   },
 };
 

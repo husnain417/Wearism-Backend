@@ -4,42 +4,39 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { validateUUID } from '../../middleware/validateUUID.js';
 
 export async function wardrobeRoutes(fastify) {
-    // All wardrobe routes are protected
     fastify.addHook('preHandler', authenticate);
 
-    // CRUD for items
     fastify.post('/items', {
-        schema: createItemSchema,
-        config: {
-            rateLimit: {
-                max: 10,
-                timeWindow: '1 hour',
-                keyGenerator: (request) => request.user.sub, // per user, not per IP
-            },
-        },
+        schema: { ...createItemSchema, tags: ['Wardrobe'], summary: 'Create a wardrobe item after image upload' },
+        config: { rateLimit: { max: 30, timeWindow: '1 hour' } },
     }, wardrobeController.createItem);
 
-    fastify.get('/items', { schema: listItemsSchema }, wardrobeController.listItems);
+    fastify.get('/items', {
+        schema: { ...listItemsSchema, tags: ['Wardrobe'], summary: 'List wardrobe items with filters' },
+    }, wardrobeController.listItems);
 
     fastify.get('/items/:id', {
+        schema: { tags: ['Wardrobe'], summary: 'Get a single wardrobe item' },
         preHandler: [authenticate, validateUUID],
     }, wardrobeController.getItem);
 
     fastify.patch('/items/:id', {
-        schema: updateItemSchema,
+        schema: { ...updateItemSchema, tags: ['Wardrobe'], summary: 'Update a wardrobe item' },
         preHandler: [authenticate, validateUUID],
     }, wardrobeController.updateItem);
 
     fastify.delete('/items/:id', {
+        schema: { tags: ['Wardrobe'], summary: 'Delete a wardrobe item' },
         preHandler: [authenticate, validateUUID],
     }, wardrobeController.deleteItem);
 
-    // Extra actions
     fastify.post('/items/:id/worn', {
+        schema: { tags: ['Wardrobe'], summary: 'Mark item as worn today' },
         preHandler: [authenticate, validateUUID],
     }, wardrobeController.markWorn);
 
     fastify.get('/items/:id/ai-status', {
+        schema: { tags: ['AI'], summary: 'Get AI classification status for item' },
         preHandler: [authenticate, validateUUID],
     }, wardrobeController.getAiStatus);
 }

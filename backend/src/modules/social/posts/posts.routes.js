@@ -7,37 +7,34 @@ import { createPostSchema, listPostsSchema, reportPostSchema } from './posts.sch
 export async function postsRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
 
-    // Create post
     fastify.post('/', {
-        schema: createPostSchema,
+        schema: { ...createPostSchema, tags: ['Social'], summary: 'Create a new post' },
         config: { rateLimit: { max: 20, timeWindow: '1 hour' } },
     }, postsController.createPost);
 
-    // Get single post
-    fastify.get('/:id', { preHandler: [authenticate, validateUUID] },
-        postsController.getPost,
-    );
+    fastify.get('/:id', {
+        schema: { tags: ['Social'], summary: 'Get a single post' },
+        preHandler: [authenticate, validateUUID],
+    }, postsController.getPost);
 
-    // Delete own post
-    fastify.delete('/:id', { preHandler: [authenticate, validateUUID] },
-        postsController.deletePost,
-    );
+    fastify.delete('/:id', {
+        schema: { tags: ['Social'], summary: 'Delete own post' },
+        preHandler: [authenticate, validateUUID],
+    }, postsController.deletePost);
 
-    // List posts by user
     fastify.get('/user/:userId', {
-        schema: listPostsSchema,
+        schema: { ...listPostsSchema, tags: ['Social'], summary: 'List posts by user' },
         preHandler: [authenticate, validateUUID],
     }, postsController.listUserPosts);
 
-    // Toggle like
     fastify.post('/:id/like', {
+        schema: { tags: ['Social'], summary: 'Toggle like on a post' },
         preHandler: [authenticate, validateUUID],
         config: { rateLimit: { max: 100, timeWindow: '1 hour' } },
     }, postsController.toggleLike);
 
-    // Report post
     fastify.post('/:id/report', {
-        schema: reportPostSchema,
+        schema: { ...reportPostSchema, tags: ['Social'], summary: 'Report a post' },
         preHandler: [authenticate, validateUUID],
         config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
     }, postsController.reportPost);

@@ -131,6 +131,13 @@ Every feature module inside `src/modules/` adheres to a strict 3-4 file pattern:
 - [x] Implemented 22 endpoints across 4 modules: `/vendors`, `/products`, `/cart`, `/orders`.
 - [x] Hardened write endpoints with per-hour rate limits (Products: 50, Orders: 20, Cart: 100).
 
+**Phase 8: Finishing Layer & Push Notifications — COMPLETED**
+- [x] Standardised API Infrastructure globally with `@fastify/compress`, `@fastify/rate-limit`, and custom standard pagination wrappers.
+- [x] Integrated Swagger/OpenAPI documentation auto-generation via JSON schemas over `@fastify/swagger` and `@scalar/fastify-api-reference`, available at `/docs`.
+- [x] Initialized Firebase Admin SDK for real-time mobile push notifications.
+- [x] Added `fcm_token` device management to the `profiles` table.
+- [x] Integrated "fire-and-forget" push notifications internally into Follows, Posts, Comments, and Orders services.
+
 ## 5. Coding Guidelines for AI Agents
 1. **Always use ES Modules (`import`/`export`).** Never use `require`.
 2. **Never expose the `service_role` key.** Only use `src/config/supabase.js` for DB interactions on the backend.

@@ -25,6 +25,25 @@ export const authController = {
         });
     },
 
+    // GET /auth/callback
+    async callback(request, reply) {
+        const { token_hash, type } = request.query;
+        console.log("CALLBACK HIT:", token_hash, type);
+        const deepLink = `exp://192.168.43.81:8081/--/auth/callback?token_hash=${token_hash}&type=${type}`;
+        return reply.redirect(deepLink);
+    },
+
+    // GET /auth/verify
+    async verifyEmail(request, reply) {
+        // Detailed logging to debug Supabase redirect parameters
+        console.log('[AuthController] Full URL:', request.url);
+        console.log('[AuthController] Query params:', request.query);
+        console.log('[AuthController] Headers:', request.headers);
+
+        const result = await authService.verifyEmail(request.query);
+        return reply.send(result);
+    },
+
     // POST /auth/login
     async login(request, reply) {
         const { email, password } = request.body;
@@ -83,6 +102,18 @@ export const authController = {
         return reply.send({
             success: true,
             message: 'If that email exists, a reset link has been sent.',
+        });
+    },
+
+    // POST /auth/update-password
+    async updatePassword(request, reply) {
+        const { password } = request.body;
+
+        await authService.updatePassword(request.user.sub, password);
+
+        return reply.send({
+            success: true,
+            message: 'Password updated successfully.',
         });
     },
 

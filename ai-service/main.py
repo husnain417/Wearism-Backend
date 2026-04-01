@@ -10,6 +10,7 @@ from schemas.requests import (
     ClassifyClothingRequest, ClassifyClothingResponse,
     RateOutfitRequest, RateOutfitResponse,
     AnalyseUserRequest, AnalyseUserResponse,
+    QueueRateOutfitRequest, QueueRateRecommendationRequest,
 )
 from models.stubs import classify_clothing_model, rate_outfit_model, analyse_user_model
 
@@ -114,3 +115,60 @@ async def analyse_user(request: AnalyseUserRequest):
 
     logger.info(f'Analysed user {request.user_id} in {round((time.time() - start) * 1000)}ms')
     return result
+
+
+# ── INTERNAL QUEUE BRIDGE (Node.js -> Celery) ─────────────
+
+@app.post(
+    '/queue/classify/clothing',
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def queue_classify_clothing(request: ClassifyClothingRequest):
+    from tasks.clothing_tasks import classify_clothing
+    task = classify_clothing.delay(request.item_id, request.image_url, request.ai_result_id)
+    return {'status': 'queued', 'task_id': task.id}
+
+
+@app.post(
+    '/queue/rate/outfit',
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def queue_rate_outfit(request: QueueRateOutfitRequest):
+    from tasks.outfit_tasks import rate_outfit
+    task = rate_outfit.delay(
+        request.outfit_id, 
+        request.ai_result_id,
+        request.season,
+        request.occasion,
+        request.weather
+    )
+    return {'status': 'queued', 'task_id': task.id}
+
+
+@app.post(
+    '/queue/rate/recommendation',
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def queue_rate_recommendation(request: QueueRateRecommendationRequest):
+    from tasks.outfit_tasks import rate_recommendation
+    task = rate_recommendation.delay(
+        request.recommendation_id, 
+        [item.dict() for item in request.items], 
+        request.ai_result_id,
+        request.user_id,
+        request.season,
+        request.occasion,
+        request.weather
+    )
+    return {'status': 'queued', 'task_id': task.id}
+
+
+@app.post(
+    '/queue/analyse/user',
+    dependencies=[Depends(verify_internal_secret)],
+)
+async def queue_analyse_user(request: AnalyseUserRequest):
+    from tasks.user_tasks import analyse_user
+    task = analyse_user.delay(request.user_id, request.image_url, request.ai_result_id)
+    return {'status': 'queued', 'task_id': task.id}
+

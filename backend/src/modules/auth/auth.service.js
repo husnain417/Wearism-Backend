@@ -40,12 +40,37 @@ export const authService = {
                     gdpr_consent_version: '1.0',
                 },
                 // GDPR: require email verification before account is active
-                emailRedirectTo: process.env.EMAIL_REDIRECT_URL,
+                emailRedirectTo: 'exp://192.168.43.81:8081/--/auth/callback',
             },
         });
 
         if (error) throw error;
         return data;
+    },
+
+    // ── VERIFY EMAIL ─────────────────────────────────────
+    async verifyEmail(query) {
+        const { token, token_hash, type = 'email' } = query;
+        const verifyToken = token_hash || token;
+
+        // 1. Log params for debugging Supabase redirect
+        console.log('[AuthService] verifyEmail params:', query);
+
+        // 4. Validation
+        if (!verifyToken) {
+            const error = new Error('token_hash is required');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const { data, error } = await supabase.auth.verifyOtp({ token_hash: verifyToken, type });
+        if (error) throw new Error(error.message);
+
+        return {
+            success: true,
+            session: data.session,
+            user: data.user,
+        };
     },
 
     // ── LOGIN ────────────────────────────────────────────
@@ -93,6 +118,15 @@ export const authService = {
     async forgotPassword(email) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: process.env.PASSWORD_RESET_REDIRECT_URL,
+        });
+
+        if (error) throw error;
+    },
+
+    // ── UPDATE PASSWORD ───────────────────────────────────
+    async updatePassword(userId, newPassword) {
+        const { error } = await supabase.auth.admin.updateUserById(userId, {
+            password: newPassword,
         });
 
         if (error) throw error;

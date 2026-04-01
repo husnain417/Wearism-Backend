@@ -462,7 +462,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
     describe('GET /posts/user/:userId', () => {
         const listResult = {
-            posts: [samplePost],
+            data: [samplePost],
             pagination: { total: 1, page: 1, limit: 20, total_pages: 1 },
         };
 
@@ -477,8 +477,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.success).toBe(true);
-            expect(body.posts).toHaveLength(1);
+            expect(body.data).toHaveLength(1);
         });
 
         it('passes page and limit query params to service', async () => {
@@ -496,10 +495,10 @@ describe('Phase 6 — Social Hub Endpoints', () => {
             );
         });
 
-        it('returns 400 for limit > 50', async () => {
+        it('returns 400 for limit > 100', async () => {
             const res = await app.inject({
                 method: 'GET',
-                url: `/posts/user/${VALID_UUID}?limit=99`,
+                url: `/posts/user/${VALID_UUID}?limit=101`,
                 headers: AUTH_HEADER,
             });
 
@@ -611,7 +610,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
     describe('GET /posts/:postId/comments', () => {
         const listResult = {
-            comments: [sampleComment],
+            data: [sampleComment],
             pagination: { total: 1, page: 1, limit: 20, total_pages: 1 },
         };
 
@@ -626,8 +625,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.success).toBe(true);
-            expect(body.comments[0].replies).toBeDefined();
+            expect(body.data[0].replies).toBeDefined();
         });
 
         it('returns empty array when no comments exist', async () => {
@@ -642,7 +640,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
             });
 
             expect(res.statusCode).toBe(200);
-            expect(JSON.parse(res.payload).comments).toHaveLength(0);
+            expect(JSON.parse(res.payload).data).toHaveLength(0);
         });
 
         it('passes postId from route param to service', async () => {
@@ -919,7 +917,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
     describe('GET /follows/:userId/followers and /following', () => {
         const listResult = {
-            followers: [{ follower_id: USER_B_ID, profiles: { full_name: 'User B' } }],
+            data: [{ follower_id: USER_B_ID, profiles: { full_name: 'User B' } }],
             pagination: { total: 1, page: 1, limit: 20, total_pages: 1 },
         };
 
@@ -934,13 +932,12 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.success).toBe(true);
-            expect(body.followers).toHaveLength(1);
+            expect(body.data).toHaveLength(1);
         });
 
         it('GET /following returns paginated following list', async () => {
             mockFollowsService.listFollowing.mockResolvedValueOnce({
-                following: [{ following_id: USER_B_ID, profiles: { full_name: 'User B' } }],
+                data: [{ following_id: USER_B_ID, profiles: { full_name: 'User B' } }],
                 pagination: { total: 1, page: 1, limit: 20, total_pages: 1 },
             });
 
@@ -1038,8 +1035,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.success).toBe(true);
-            expect(body.posts).toHaveLength(1);
+            expect(body.data).toHaveLength(1);
             expect(body.from_cache).toBe(false);
         });
 
@@ -1105,8 +1101,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.success).toBe(true);
-            expect(body.posts).toHaveLength(1);
+            expect(body.data).toHaveLength(1);
         });
 
         it('passes page and limit to service', async () => {

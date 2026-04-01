@@ -4,6 +4,7 @@ import {
     loginSchema,
     refreshSchema,
     forgotPasswordSchema,
+    updatePasswordSchema,
 } from './auth.schema.js';
 import { authenticate } from '../../middleware/authenticate.js';
 
@@ -12,51 +13,68 @@ export async function authRoutes(fastify) {
     fastify.post(
         '/signup',
         {
-            schema: signupSchema,
-            config: {
-                rateLimit: {
-                    max: 3, // 3 signups per IP per 15 min
-                    timeWindow: '15 minutes',
-                },
-            },
+            schema: { ...signupSchema, tags: ['Auth'], summary: 'Register a new account' },
+            config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
         },
         authController.signup
     );
 
+    fastify.get('/callback', {
+        schema: { tags: ['Auth'], summary: 'Handle Supabase email callback and redirect to app' },
+    }, authController.callback);
+
+    fastify.get('/verify', {
+        schema: { tags: ['Auth'], summary: 'Verify email with token hash' },
+    }, authController.verifyEmail);
+
     fastify.post(
         '/login',
         {
-            schema: loginSchema,
-            config: {
-                rateLimit: {
-                    max: 5, // only 5 login attempts
-                    timeWindow: '15 minutes',
-                },
-            },
+            schema: { ...loginSchema, tags: ['Auth'], summary: 'Login with email and password' },
+            config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
         },
         authController.login
     );
 
-    fastify.get('/google', authController.googleOAuth);
+    fastify.get('/google', {
+        schema: { tags: ['Auth'], summary: 'Redirect to Google OAuth' },
+    }, authController.googleOAuth);
 
-    fastify.post('/refresh', { schema: refreshSchema }, authController.refresh);
+    fastify.post('/refresh', {
+        schema: { ...refreshSchema, tags: ['Auth'], summary: 'Refresh access token' },
+    }, authController.refresh);
 
     fastify.post(
         '/forgot-password',
         {
-            schema: forgotPasswordSchema,
-            config: {
-                rateLimit: {
-                    max: 3,
-                    timeWindow: '1 hour',
-                },
-            },
+            schema: { ...forgotPasswordSchema, tags: ['Auth'], summary: 'Send password reset email' },
+            config: { rateLimit: { max: 3, timeWindow: '1 hour' } },
         },
         authController.forgotPassword
     );
 
     // Protected routes — require valid JWT
-    fastify.post('/logout', { preHandler: authenticate }, authController.logout);
-    fastify.delete('/account', { preHandler: authenticate }, authController.deleteAccount);
-    fastify.get('/me/data', { preHandler: authenticate }, authController.getMyData);
+    fastify.post(
+        '/update-password',
+        {
+            schema: { ...updatePasswordSchema, tags: ['Auth'], summary: 'Update your password' },
+            preHandler: authenticate,
+            config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+        },
+        authController.updatePassword
+    );
+    fastify.post('/logout', {
+        schema: { tags: ['Auth'], summary: 'Logout and invalidate token' },
+        preHandler: authenticate,
+    }, authController.logout);
+
+    fastify.delete('/account', {
+        schema: { tags: ['Auth'], summary: 'Delete account (GDPR Article 17)' },
+        preHandler: authenticate,
+    }, authController.deleteAccount);
+
+    fastify.get('/me/data', {
+        schema: { tags: ['Auth'], summary: 'Export all my data (GDPR Article 15)' },
+        preHandler: authenticate,
+    }, authController.getMyData);
 }

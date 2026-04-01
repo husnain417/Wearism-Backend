@@ -1,77 +1,59 @@
-// Pushes AI jobs to Redis queues consumed by Celery workers.
+// Pushes AI jobs to the Python FastAPI service via HTTP.
+// FastAPI acts as a lightweight proxy, seamlessly enqueuing the job into Celery natively.
+// This completely bypasses the BullMQ-to-Celery Redis protocol incompatibility.
 // Fastify never receives results — Celery writes directly to Supabase.
-// Mobile app polls Supabase via Fastify for status updates.
-import { Queue } from 'bullmq';
-import { getRedisClient } from '../config/redis.js';
 
-let _queues;
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+const INTERNAL_SECRET = process.env.AI_SHARED_SECRET || 'wearism_internal_secret_dev';
 
-function getQueues() {
-    if (!_queues) {
-        const connection = { client: getRedisClient() };
-        _queues = {
-            clothing: new Queue('clothing', { connection }),
-            outfit: new Queue('outfits', { connection }),
-            user: new Queue('users', { connection }),
-        };
-
-        // ── 9.5 Dead Letter Queue Monitoring ─────────────────────
-        Object.values(_queues).forEach((queue) => {
-            queue.on('failed', (job, err) => {
-                if (job.attemptsMade >= job.opts.attempts) {
-                    console.error({
-                        msg: `[BullMQ] Job ${job.id} permanently failed in queue ${queue.name}`,
-                        jobId: job.id,
-                        data: job.data,
-                        error: err.message,
-                    });
-                }
-            });
+async function dispatchToPythonBroker(endpoint, payload) {
+    if (process.env.NODE_ENV === 'test') return;
+    
+    try {
+        const response = await fetch(`${AI_SERVICE_URL}/queue${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Secret': INTERNAL_SECRET,
+            },
+            body: JSON.stringify(payload),
         });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`FastAPI returned ${response.status}: ${err}`);
+        }
+    } catch (err) {
+        console.error(`[AI Queue] Connection to AI Service failed: ${err.message}`);
+        throw err; // Re-throw so the caller can implement retry logic
     }
-    return _queues;
 }
 
 export const aiQueue = {
 
     async queueClothingClassification({ itemId, imageUrl, aiResultId }) {
-        const { clothing } = getQueues();
-        await clothing.add('classify_clothing', {
+        await dispatchToPythonBroker('/classify/clothing', {
             item_id: itemId,
             image_url: imageUrl,
             ai_result_id: aiResultId,
-        }, {
-            jobId: `classify-${itemId}`,   // idempotent — prevents duplicate jobs
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 10000 },
         });
     },
 
     async queueOutfitRating({ outfitId, aiResultId, season, occasion, weather }) {
-        const { outfit } = getQueues();
-        await outfit.add('rate_outfit', {
+        await dispatchToPythonBroker('/rate/outfit', {
             outfit_id: outfitId,
             ai_result_id: aiResultId,
             season: season || null,
             occasion: occasion || null,
             weather: weather || null,
-        }, {
-            jobId: `rate-${outfitId}`,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 15000 },
         });
     },
 
     async queueUserAnalysis({ userId, imageUrl, aiResultId }) {
-        const { user } = getQueues();
-        await user.add('analyse_user', {
+        await dispatchToPythonBroker('/analyse/user', {
             user_id: userId,
             image_url: imageUrl,
             ai_result_id: aiResultId,
-        }, {
-            jobId: `analyse-${userId}-${Date.now()}`,
-            attempts: 2,
-            backoff: { type: 'fixed', delay: 10000 },
         });
     },
 
@@ -79,19 +61,14 @@ export const aiQueue = {
         recommendationId, items, aiResultId, userId,
         season, occasion, weather
     }) {
-        const { outfit } = getQueues();
-        await outfit.add('rate_recommendation', {
+        await dispatchToPythonBroker('/rate/recommendation', {
             recommendation_id: recommendationId,
-            items: items,
+            items: items || [],
             ai_result_id: aiResultId,
             user_id: userId,
             season: season || null,
             occasion: occasion || null,
             weather: weather || null,
-        }, {
-            jobId: `rec-${recommendationId}`,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 10000 },
         });
     },
 };

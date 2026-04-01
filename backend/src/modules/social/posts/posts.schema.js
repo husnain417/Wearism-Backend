@@ -1,18 +1,21 @@
 // src/modules/social/posts/posts.schema.js
+import { occasionEnum, seasonEnum, weatherEnum, visibilityEnum, paginationQuery } from '../../../utils/validate.js';
 
 export const createPostSchema = {
     body: {
         type: 'object',
         anyOf: [{ required: ['caption'] }, { required: ['image_path'] }, { required: ['outfit_id'] }],
         properties: {
+            post_id: { type: 'string', format: 'uuid' },
             caption: { type: 'string', maxLength: 500 },
-            image_path: { type: 'string' },
+            image_path: { type: 'string', maxLength: 500 },
             outfit_id: { type: 'string', format: 'uuid' },
-            occasion: { type: 'string' },
-            season: { type: 'string', enum: ['spring', 'summer', 'fall', 'winter', 'all_season'] },
-            weather: { type: 'string', enum: ['hot', 'warm', 'mild', 'cool', 'cold'] },
+            occasion: occasionEnum,
+            season: seasonEnum,
+            weather: weatherEnum,
             tags: { type: 'array', items: { type: 'string', maxLength: 30 }, maxItems: 10 },
-            visibility: { type: 'string', enum: ['public', 'followers_only', 'private'], default: 'public' },
+            visibility: visibilityEnum,
+            file: { type: 'object' },
         },
         additionalProperties: false,
     },
@@ -21,10 +24,8 @@ export const createPostSchema = {
 export const listPostsSchema = {
     querystring: {
         type: 'object',
-        properties: {
-            page: { type: 'integer', minimum: 1, default: 1 },
-            limit: { type: 'integer', minimum: 1, maximum: 50, default: 20 },
-        },
+        properties: { ...paginationQuery },
+        additionalProperties: false,
     },
 };
 

@@ -18,7 +18,7 @@ export const recommendationsController = {
             request.user.sub,
             request.query
         );
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     // GET /recommendations/:id

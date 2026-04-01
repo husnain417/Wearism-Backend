@@ -1,4 +1,5 @@
 import { supabase } from '../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../utils/pagination.js';
 
 export const outfitService = {
     // ── CREATE OUTFIT ─────────────────────────────────────
@@ -64,27 +65,25 @@ export const outfitService = {
     },
 
     // ── LIST OUTFITS ──────────────────────────────────────
-    async listOutfits(userId, { occasion, status, page, limit }) {
-        let query = supabase
+    async listOutfits(userId, query) {
+        const { page, limit, from } = parsePagination(query);
+        const { occasion, status } = query;
+
+        let supabaseQuery = supabase
             .from('outfits')
             .select('*, outfit_items(count)', { count: 'exact' })
             .eq('user_id', userId)
             .is('deleted_at', null)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(from, from + limit - 1);
 
-        if (occasion) query = query.eq('occasion', occasion);
-        if (status) query = query.eq('status', status);
+        if (occasion) supabaseQuery = supabaseQuery.eq('occasion', occasion);
+        if (status) supabaseQuery = supabaseQuery.eq('status', status);
 
-        const from = (page - 1) * limit;
-        query = query.range(from, from + limit - 1);
-
-        const { data, error, count } = await query;
+        const { data, error, count } = await supabaseQuery;
         if (error) throw error;
 
-        return {
-            outfits: data,
-            pagination: { total: count, page, limit, total_pages: Math.ceil(count / limit) },
-        };
+        return paginatedResult(data || [], count || 0, page, limit);
     },
 
     // ── UPDATE OUTFIT ─────────────────────────────────────

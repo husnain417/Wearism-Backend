@@ -11,11 +11,8 @@ export const ordersController = {
 
   // GET /orders  — buyer's own orders
   async listBuyerOrders(request, reply) {
-    const result = await ordersService.listBuyerOrders(request.user.sub, {
-      page:  request.query.page  ?? 1,
-      limit: request.query.limit ?? 20,
-    });
-    return reply.send({ success: true, ...result });
+    const result = await ordersService.listBuyerOrders(request.user.sub, request.query);
+    return reply.send(result);
   },
 
   // GET /orders/:id  — single order (buyer or vendor)
@@ -55,12 +52,8 @@ export const ordersController = {
 
   // GET /orders/vendor  — vendor incoming orders
   async listVendorOrders(request, reply) {
-    const result = await ordersService.listVendorOrders(request.vendor.id, {
-      page:   request.query.page   ?? 1,
-      limit:  request.query.limit  ?? 20,
-      status: request.query.status,
-    });
-    return reply.send({ success: true, ...result });
+    const result = await ordersService.listVendorOrders(request.vendor.id, request.query);
+    return reply.send(result);
   },
 
   // PATCH /orders/:id/confirm

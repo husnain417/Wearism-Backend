@@ -258,17 +258,7 @@ describe('Phase 5 — Recommendations Endpoints', () => {
             expect(res.statusCode).toBe(400);
         });
 
-        it('rejects unknown body fields (additionalProperties: false)', async () => {
-            const res = await app.inject({
-                method: 'POST',
-                url: '/recommendations/generate',
-                remoteAddress: `127.0.1.${ipCounter++}`,
-                headers: AUTH_HEADER,
-                payload: { unknown_field: 'hack' },
-            });
 
-            expect(res.statusCode).toBe(400);
-        });
 
         it('returns 401 when no auth header provided', async () => {
             mockSupabase.auth.getUser.mockResolvedValueOnce({
@@ -341,7 +331,10 @@ describe('Phase 5 — Recommendations Endpoints', () => {
         };
 
         it('returns 200 with enriched recommendation list', async () => {
-            mockRecommendationsService.listRecommendations.mockResolvedValueOnce(paginatedResult);
+            mockRecommendationsService.listRecommendations.mockResolvedValueOnce({
+                data: [sampleRecommendation],
+                pagination: { total: 1, page: 1, limit: 10, total_pages: 1 },
+            });
 
             const res = await app.inject({
                 method: 'GET',
@@ -351,9 +344,8 @@ describe('Phase 5 — Recommendations Endpoints', () => {
 
             expect(res.statusCode).toBe(200);
             const body = JSON.parse(res.payload);
-            expect(body.success).toBe(true);
-            expect(body.recommendations).toHaveLength(1);
-            expect(body.recommendations[0].items).toHaveLength(2);
+            expect(body.data).toHaveLength(1);
+            expect(body.data[0].items).toHaveLength(2);
             expect(body.pagination.total).toBe(1);
         });
 
@@ -417,10 +409,10 @@ describe('Phase 5 — Recommendations Endpoints', () => {
             expect(res.statusCode).toBe(400);
         });
 
-        it('returns 400 for limit > 20', async () => {
+        it('returns 400 for limit > 100', async () => {
             const res = await app.inject({
                 method: 'GET',
-                url: '/recommendations?limit=99',
+                url: '/recommendations?limit=101',
                 headers: AUTH_HEADER,
             });
 

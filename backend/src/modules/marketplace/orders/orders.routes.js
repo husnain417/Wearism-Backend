@@ -5,46 +5,42 @@ import { ordersController } from './orders.controller.js';
 import { placeOrderSchema, listOrdersSchema, cancelOrderSchema } from './orders.schema.js';
 
 export async function ordersRoutes(fastify) {
-  // All order routes require authentication
   fastify.addHook('preHandler', authenticate);
 
-  // POST /orders  — place order from cart (COD, splits by vendor)
   fastify.post('/', {
-    schema: placeOrderSchema,
+    schema: { ...placeOrderSchema, tags: ['Marketplace'], summary: 'Place order from cart (COD, splits by vendor)' },
     config: { rateLimit: { max: 20, timeWindow: '1 hour' } },
   }, ordersController.placeOrder);
 
-  // GET /orders  — buyer's own orders
   fastify.get('/', {
-    schema: listOrdersSchema,
+    schema: { ...listOrdersSchema, tags: ['Marketplace'], summary: 'List buyer orders' },
   }, ordersController.listBuyerOrders);
 
-  // GET /orders/vendor  — vendor incoming orders (must be before /:id to avoid conflict)
   fastify.get('/vendor', {
     preHandler: [authenticate, requireVendor],
-    schema: listOrdersSchema,
+    schema: { ...listOrdersSchema, tags: ['Marketplace'], summary: 'List vendor incoming orders' },
   }, ordersController.listVendorOrders);
 
-  // GET /orders/:id  — order detail (buyer or vendor)
-  fastify.get('/:id', ordersController.getOrder);
+  fastify.get('/:id', {
+    schema: { tags: ['Marketplace'], summary: 'Get order detail' },
+  }, ordersController.getOrder);
 
-  // PATCH /orders/:id/cancel  — buyer cancels (pending_confirmation only)
   fastify.patch('/:id/cancel', {
-    schema: cancelOrderSchema,
+    schema: { ...cancelOrderSchema, tags: ['Marketplace'], summary: 'Buyer cancels pending order' },
   }, ordersController.cancelOrder);
 
-  // PATCH /orders/:id/confirm  — vendor confirms
   fastify.patch('/:id/confirm', {
+    schema: { tags: ['Marketplace'], summary: 'Vendor confirms order' },
     preHandler: [authenticate, requireVendor],
   }, ordersController.confirmOrder);
 
-  // PATCH /orders/:id/ship  — vendor marks shipped
   fastify.patch('/:id/ship', {
+    schema: { tags: ['Marketplace'], summary: 'Vendor marks order shipped' },
     preHandler: [authenticate, requireVendor],
   }, ordersController.shipOrder);
 
-  // PATCH /orders/:id/deliver  — vendor marks delivered (auto-completes)
   fastify.patch('/:id/deliver', {
+    schema: { tags: ['Marketplace'], summary: 'Vendor marks order delivered' },
     preHandler: [authenticate, requireVendor],
   }, ordersController.deliverOrder);
 }

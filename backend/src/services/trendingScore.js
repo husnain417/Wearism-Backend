@@ -4,14 +4,15 @@ import { getRedisClient } from '../config/redis.js';
 
 const TRENDING_CACHE_KEY = 'trending:posts';
 const TRENDING_TTL = 15 * 60;        // 15 minutes in seconds
-const TRENDING_POST_LIMIT = 50;             // top 50 in cache
+export const TRENDING_POST_LIMIT = 50;             // top 50 in cache
 
 // Hacker News-style time decay formula
 // score = (likes*1.5 + comments*2 - reports*3) / (age_hours + 2)^1.5
 function computeScore({ likes_count, comments_count, report_count, created_at }) {
+    if (!created_at) return 0;
     const ageHours = (Date.now() - new Date(created_at).getTime()) / 3600000;
-    const raw = (likes_count * 1.5) + (comments_count * 2) - (report_count * 3);
-    return Math.max(0, raw / Math.pow(ageHours + 2, 1.5));
+    const raw = ((likes_count || 0) * 1.5) + ((comments_count || 0) * 2) - ((report_count || 0) * 3);
+    return Math.max(0, raw / Math.pow(Math.max(0, ageHours) + 2, 1.5));
 }
 
 export async function refreshTrendingCache() {

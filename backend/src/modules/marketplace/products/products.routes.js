@@ -12,51 +12,47 @@ import {
 
 export async function productsRoutes(fastify) {
 
-  // POST /products  — vendor creates product (starts as draft)
   fastify.post('/', {
     preHandler: [authenticate, requireVendor],
-    schema: createProductSchema,
+    schema: { ...createProductSchema, tags: ['Marketplace'], summary: 'Create a product (vendor only)' },
     config: { rateLimit: { max: 50, timeWindow: '1 hour' } },
   }, productsController.createProduct);
 
-  // GET /products  — public browse with filters
   fastify.get('/', {
-    schema: browseProductsSchema,
+    schema: { ...browseProductsSchema, tags: ['Marketplace'], summary: 'Browse products with filters and search' },
   }, productsController.browseProducts);
 
-  // POST /products/resale — auth + vendor: list a wardrobe item for resale
   fastify.post('/resale', {
     preHandler: [authenticate, requireVendor],
-    schema: resaleSchema,
+    schema: { ...resaleSchema, tags: ['Marketplace'], summary: 'List a wardrobe item for resale' },
   }, productsController.createResaleListing);
 
-  // GET /products/:id  — public single product
-  fastify.get('/:id', productsController.getProduct);
+  fastify.get('/:id', {
+    schema: { tags: ['Marketplace'], summary: 'Get a single product' },
+  }, productsController.getProduct);
 
-  // PATCH /products/:id  — vendor updates own product
   fastify.patch('/:id', {
     preHandler: [authenticate, requireVendor],
-    schema: updateProductSchema,
+    schema: { ...updateProductSchema, tags: ['Marketplace'], summary: 'Update own product' },
   }, productsController.updateProduct);
 
-  // DELETE /products/:id  — vendor soft-deletes own product
   fastify.delete('/:id', {
+    schema: { tags: ['Marketplace'], summary: 'Soft-delete own product' },
     preHandler: [authenticate, requireVendor],
   }, productsController.deleteProduct);
 
-  // PATCH /products/:id/activate  — vendor publishes draft product
   fastify.patch('/:id/activate', {
+    schema: { tags: ['Marketplace'], summary: 'Publish draft product' },
     preHandler: [authenticate, requireVendor],
   }, productsController.activateProduct);
 
-  // POST /products/:id/images  — vendor adds image (max 6)
   fastify.post('/:id/images', {
     preHandler: [authenticate, requireVendor],
-    schema: addImageSchema,
+    schema: { ...addImageSchema, tags: ['Marketplace'], summary: 'Add product image (max 6)' },
   }, productsController.addImage);
 
-  // DELETE /products/:id/images/:imageId  — vendor removes image
   fastify.delete('/:id/images/:imageId', {
+    schema: { tags: ['Marketplace'], summary: 'Remove a product image' },
     preHandler: [authenticate, requireVendor],
   }, productsController.deleteImage);
 }

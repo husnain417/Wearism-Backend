@@ -7,27 +7,32 @@ import { validateUUID } from '../../middleware/validateUUID.js';
 export async function recommendationsRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
 
-    // Generate a fresh batch of recommendations
-    fastify.post('/generate',
-        {
-            schema: generateRecommendationsSchema,
-            config: { rateLimit: { max: 5, timeWindow: '1 hour' } }, // expensive operation
-        },
-        recommendationsController.generate
-    );
+    fastify.post('/generate', {
+        schema: { ...generateRecommendationsSchema, tags: ['AI'], summary: 'Generate a fresh batch of outfit recommendations' },
+        config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+    }, recommendationsController.generate);
 
-    // List current recommendations
-    fastify.get('/', { schema: listRecommendationsSchema }, recommendationsController.list);
+    fastify.get('/', {
+        schema: { ...listRecommendationsSchema, tags: ['AI'], summary: 'List current recommendations' },
+    }, recommendationsController.list);
 
-    // Get single recommendation with full item details
-    fastify.get('/:id', { preHandler: [authenticate, validateUUID] }, recommendationsController.getOne);
+    fastify.get('/:id', {
+        schema: { tags: ['AI'], summary: 'Get a single recommendation with full item details' },
+        preHandler: [authenticate, validateUUID],
+    }, recommendationsController.getOne);
 
-    // Save a recommendation as an outfit
-    fastify.post('/:id/save', { preHandler: [authenticate, validateUUID] }, recommendationsController.save);
+    fastify.post('/:id/save', {
+        schema: { tags: ['AI'], summary: 'Save a recommendation as an outfit' },
+        preHandler: [authenticate, validateUUID],
+    }, recommendationsController.save);
 
-    // Unsave (remove saved outfit)
-    fastify.delete('/:id/save', { preHandler: [authenticate, validateUUID] }, recommendationsController.unsave);
+    fastify.delete('/:id/save', {
+        schema: { tags: ['AI'], summary: 'Unsave a recommendation' },
+        preHandler: [authenticate, validateUUID],
+    }, recommendationsController.unsave);
 
-    // Dismiss (hide from list)
-    fastify.post('/:id/dismiss', { preHandler: [authenticate, validateUUID] }, recommendationsController.dismiss);
+    fastify.post('/:id/dismiss', {
+        schema: { tags: ['AI'], summary: 'Dismiss a recommendation' },
+        preHandler: [authenticate, validateUUID],
+    }, recommendationsController.dismiss);
 }

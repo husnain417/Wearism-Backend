@@ -7,17 +7,17 @@ import { createCommentSchema, listCommentsSchema } from './comments.schema.js';
 export async function commentsRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
 
-    // List comments on a post (with nested replies)
-    fastify.get('/', { schema: listCommentsSchema }, commentsController.listComments);
+    fastify.get('/', {
+        schema: { ...listCommentsSchema, tags: ['Social'], summary: 'List comments on a post (nested replies)' },
+    }, commentsController.listComments);
 
-    // Create comment / reply
     fastify.post('/', {
-        schema: createCommentSchema,
-        config: { rateLimit: { max: 60, timeWindow: '1 hour' } },
+        schema: { ...createCommentSchema, tags: ['Social'], summary: 'Create a comment or reply' },
+        config: { rateLimit: { max: 30, timeWindow: '1 hour' } },
     }, commentsController.createComment);
 
-    // Delete own comment
-    fastify.delete('/:commentId', { preHandler: [authenticate, validateUUID] },
-        commentsController.deleteComment,
-    );
+    fastify.delete('/:commentId', {
+        schema: { tags: ['Social'], summary: 'Delete own comment' },
+        preHandler: [authenticate, validateUUID],
+    }, commentsController.deleteComment);
 }

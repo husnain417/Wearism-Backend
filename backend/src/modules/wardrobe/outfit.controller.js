@@ -34,7 +34,7 @@ export const outfitController = {
 
     async listOutfits(request, reply) {
         const result = await outfitService.listOutfits(request.user.sub, request.query);
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     async getOutfit(request, reply) {

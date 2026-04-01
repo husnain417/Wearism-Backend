@@ -3,28 +3,89 @@ import { supabase } from '../../config/supabase.js';
 import { aiQueue } from '../../services/aiQueue.js';
 
 export const wardrobeController = {
-    // POST /wardrobe/items
+    // POST /wardrobe/items — accepts multipart/form-data
     async createItem(request, reply) {
-        const item = await wardrobeService.createItem(request.user.sub, request.body);
+        const file = request.body?.file;
+        const { item_id, name, brand, condition, purchase_price } = request.body || {};
 
-        // Create pending AI result row in DB
-        const { data: aiResult } = await supabase
-            .from('ai_results')
-            .insert({
-                user_id: request.user.sub,
-                wardrobe_item_id: item.id,
-                task_type: 'clothing_classification',
-                status: 'pending',
-            })
-            .select('id')
-            .single();
+        // ── STEP 1: Insert wardrobe_items (via wardrobeService) ─────────────────
+        console.log(`[Step 1] Inserting wardrobe_items record for item_id: ${item_id}`);
+        let item;
+        try {
+            item = await wardrobeService.createItem(request.user.sub, {
+                item_id,
+                name,
+                brand,
+                condition,
+                purchase_price: purchase_price ? Number(purchase_price) : undefined,
+            }, file);
+        } catch (error) {
+            console.error(`[Step 1] Failed to insert wardrobe_items:`, error.message || error);
+            throw error; // Global error handler catches this and sends 4xx/500
+        }
 
-        // Push to Redis queue — Celery picks this up
-        await aiQueue.queueClothingClassification({
-            itemId: item.id,
-            imageUrl: item.image_url,
-            aiResultId: aiResult.id,
-        });
+        // Queue AI classification — fire-and-forget so it never blocks the response
+        (async () => {
+            // ── STEP 2: Insert ai_results ───────────────────────────────────────
+            console.log(`[Step 2] Inserting ai_results pending record for item_id: ${item.id}`);
+            let aiResultId = null;
+            try {
+                const { data: aiResult, error: aiError } = await supabase
+                    .from('ai_results')
+                    .insert({
+                        user_id: request.user.sub,
+                        wardrobe_item_id: item.id,
+                        task_type: 'clothing_classification',
+                        status: 'pending',
+                    })
+                    .select('id')
+                    .single();
+
+                if (aiError || !aiResult) {
+                    throw aiError || new Error("No data returned from insert");
+                }
+                aiResultId = aiResult.id;
+            } catch (err) {
+                console.error(`[Step 2] Failed to insert ai_results row:`, err.message || err);
+                request.log.error({ err }, 'Failed to insert ai_results row');
+                return; // Stop background execution: can't queue without ai_result_id
+            }
+
+            // ── STEP 3: HTTP call to FastAPI ────────────────────────────────────
+            console.log(`[Step 3] Dispatching task to FastAPI Queue for ai_result_id: ${aiResultId}`);
+            let success = false;
+            try {
+                // Attempt 1
+                await aiQueue.queueClothingClassification({
+                    itemId: item.id,
+                    imageUrl: item.image_url,
+                    aiResultId: aiResultId,
+                });
+                success = true;
+            } catch (err1) {
+                console.warn(`[Step 3] FastAPI call failed on first attempt: ${err1.message}. Retrying in 2 seconds...`);
+                // Wait 2 seconds
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                try {
+                    // Attempt 2
+                    console.log(`[Step 3] Attempt 2: Dispatching task to FastAPI Queue...`);
+                    await aiQueue.queueClothingClassification({
+                        itemId: item.id,
+                        imageUrl: item.image_url,
+                        aiResultId: aiResultId,
+                    });
+                    success = true;
+                } catch (err2) {
+                    console.error(`[Step 3] FastAPI call failed on second attempt:`, err2.message || err2);
+                    request.log.error({ err: err2 }, 'AI classification queueing failed completely');
+                }
+            }
+
+            if (success) {
+                console.log(`[Success] Background AI processes successfully initialized!`);
+            }
+        })();
 
         return reply.status(201).send({
             success: true,
@@ -37,7 +98,7 @@ export const wardrobeController = {
     // GET /wardrobe/items
     async listItems(request, reply) {
         const result = await wardrobeService.listItems(request.user.sub, request.query);
-        return reply.send({ success: true, ...result });
+        return reply.send(result);
     },
 
     // GET /wardrobe/items/:id

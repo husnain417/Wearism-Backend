@@ -1,12 +1,25 @@
 import { supabase } from '../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../utils/pagination.js';
 
 export const wardrobeService = {
     // ── CREATE ITEM ──────────────────────────────────────
-    async createItem(userId, { item_id, image_path, name, brand, condition, purchase_price }) {
-        // SECURITY: validate that the image_path starts with the user's own folder
-        // Prevents a user from registering another user's uploaded image as their own
-        if (!image_path.startsWith(`${userId}/`)) {
-            throw { statusCode: 403, message: 'Image path does not belong to this user.' };
+    async createItem(userId, { item_id, name, brand, condition, purchase_price }, file) {
+        // item_id is required — the mobile generates it as a UUID before sending
+        if (!item_id) throw { statusCode: 400, message: 'item_id is required.' };
+
+        // Derive the storage path — always owned by this user
+        const image_path = `${userId}/${item_id}.jpg`;
+
+        // Upload the image to Supabase Storage (bucket: wardrobe)
+        if (file) {
+            const buffer = Buffer.isBuffer(file) ? file : Buffer.from(file);
+            const { error: uploadError } = await supabase.storage
+                .from('wardrobe')
+                .upload(image_path, buffer, {
+                    contentType: 'image/jpeg',
+                    upsert: true,
+                });
+            if (uploadError) throw uploadError;
         }
 
         // Wardrobe size limit — prevent storage quota abuse
@@ -24,10 +37,10 @@ export const wardrobeService = {
             };
         }
 
-        // Generate a signed URL for the stored image
+        // Generate a signed URL for the stored image (1-year TTL)
         const { data: signedData, error: signedError } = await supabase.storage
             .from('wardrobe')
-            .createSignedUrl(image_path, 60 * 60 * 24 * 365); // 1 year
+            .createSignedUrl(image_path, 60 * 60 * 24 * 365);
 
         if (signedError) throw signedError;
 
@@ -35,7 +48,7 @@ export const wardrobeService = {
         const { data, error } = await supabase
             .from('wardrobe_items')
             .insert({
-                id: item_id, // use the UUID the mobile app generated
+                id: item_id,
                 user_id: userId,
                 image_url: signedData.signedUrl,
                 image_path,
@@ -43,13 +56,11 @@ export const wardrobeService = {
                 brand: brand || null,
                 condition: condition || 'good',
                 purchase_price: purchase_price || null,
-                // New fields — AI fills these via classification worker
-                wardrobe_slot: null,  // set by worker
+                wardrobe_slot: null,
                 fashionclip_main_category: null,
                 fashionclip_sub_category: null,
                 fashionclip_attributes: null,
-                is_accessory: false, // default, overridden by worker
-                // DO NOT write to deprecated columns: category, colors, pattern, fit
+                is_accessory: false,
             })
             .select()
             .single();
@@ -73,37 +84,28 @@ export const wardrobeService = {
     },
 
     // ── LIST ITEMS (with filters + pagination) ────────────
-    async listItems(userId, { slot, season, is_favourite, is_for_sale, page, limit }) {
-        let query = supabase
+    async listItems(userId, query) {
+        const { page, limit, from } = parsePagination(query);
+        const { slot, season, is_favourite, is_for_sale } = query;
+
+        let supabaseQuery = supabase
             .from('wardrobe_items')
             .select('*', { count: 'exact' })
             .eq('user_id', userId)
             .is('deleted_at', null)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(from, from + limit - 1);
 
         // Apply optional filters
-        if (slot) query = query.eq('wardrobe_slot', slot);
-        if (season) query = query.eq('season', season);
-        if (is_favourite !== undefined) query = query.eq('is_favourite', is_favourite);
-        if (is_for_sale !== undefined) query = query.eq('is_for_sale', is_for_sale);
+        if (slot) supabaseQuery = supabaseQuery.eq('wardrobe_slot', slot);
+        if (season) supabaseQuery = supabaseQuery.eq('season', season);
+        if (is_favourite !== undefined) supabaseQuery = supabaseQuery.eq('is_favourite', is_favourite);
+        if (is_for_sale !== undefined) supabaseQuery = supabaseQuery.eq('is_for_sale', is_for_sale);
 
-        // Pagination
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
-        query = query.range(from, to);
-
-        const { data, error, count } = await query;
+        const { data, error, count } = await supabaseQuery;
         if (error) throw error;
 
-        return {
-            items: data,
-            pagination: {
-                total: count,
-                page,
-                limit,
-                total_pages: Math.ceil(count / limit),
-            },
-        };
+        return paginatedResult(data || [], count || 0, page, limit);
     },
 
     // ── UPDATE ITEM ───────────────────────────────────────

@@ -4,6 +4,11 @@ import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyJwt from '@fastify/jwt';
 import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyCompress from '@fastify/compress';
+import fastifySwagger from '@fastify/swagger';
+import fastifyApiReference from '@scalar/fastify-api-reference';
+import addFormats from 'ajv-formats';
+import zlib from 'node:zlib';
 
 import { envSchema } from './config/env.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -19,7 +24,9 @@ import { vendorsRoutes }  from './modules/marketplace/vendors/vendors.routes.js'
 import { productsRoutes } from './modules/marketplace/products/products.routes.js';
 import { cartRoutes }     from './modules/marketplace/cart/cart.routes.js';
 import { ordersRoutes }   from './modules/marketplace/orders/orders.routes.js';
+import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
 import { refreshTrendingCache } from './services/trendingScore.js';
+import { getRedisClient } from './config/redis.js';
 import fastifyMultipart from '@fastify/multipart';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -32,7 +39,6 @@ export async function buildApp() {
                 process.env.NODE_ENV !== 'production'
                     ? { target: 'pino-pretty', options: { colorize: true } }
                     : undefined,
-            // Redact sensitive personal data from ALL log output
             redact: [
                 'req.body.password',
                 'req.body.weight_kg',
@@ -41,6 +47,15 @@ export async function buildApp() {
                 'req.body.body_type',
                 'req.headers.authorization',
             ],
+        },
+        ajv: {
+            customOptions: {
+                removeAdditional: 'all',  // Strip unknown fields from ALL request bodies
+                useDefaults: true,        // Apply default values from schema
+                coerceTypes: true,        // Coerce query string integers automatically
+                allErrors: true,          // Return ALL validation errors, not just first
+            },
+            plugins: [addFormats],        // Enables: email, uuid, date, date-time, uri
         },
     });
 
@@ -57,20 +72,183 @@ export async function buildApp() {
     // Security + CORS + Rate Limiting
     await app.register(fastifyHelmet);
     await app.register(fastifyCors, { origin: true });
-    await app.register(fastifyRateLimit, {
-        max: 100,           // 100 requests per timeWindow
-        timeWindow: '1 minute',
+    
+    // Response Compression — Register BEFORE routes
+    await app.register(fastifyCompress, {
+        encodings: ['br', 'gzip', 'deflate'],
+        threshold: 1024,
+        brotliOptions: { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6 } },
+        zlibOptions: { level: 6 },
+        customTypes: /^application\/json/,
     });
+
+    // API Documentation (Swagger + Scalar) — Register BEFORE routes so schemas are captured
+    await app.register(fastifySwagger, {
+        openapi: {
+            info: {
+                title:       'Wearism API',
+                description: 'Backend API for the Wearism fashion platform',
+                version:     '1.0.0',
+            },
+            servers: [
+                { url: 'http://localhost:3000', description: 'Development' },
+            ],
+            components: {
+                securitySchemes: {
+                    bearerAuth: {
+                        type:         'http',
+                        scheme:       'bearer',
+                        bearerFormat: 'JWT',
+                        description:  'Supabase JWT token from /auth/login',
+                    },
+                },
+            },
+            security: [{ bearerAuth: [] }],
+            tags: [
+                { name: 'System',        description: 'Health and status checks' },
+                { name: 'Auth',          description: 'Authentication and account management' },
+                { name: 'Profile',       description: 'User profile management' },
+                { name: 'Wardrobe',      description: 'Wardrobe items and outfits' },
+                { name: 'AI',            description: 'AI classification and recommendations' },
+                { name: 'Social',        description: 'Posts, comments, likes, follows' },
+                { name: 'Feed',          description: 'Home feed and trending' },
+                { name: 'Marketplace',   description: 'Vendors, products, cart, orders' },
+                { name: 'Notifications', description: 'Push notification token management' },
+            ],
+        },
+    });
+
+    await app.register(fastifyApiReference, {
+        routePrefix: '/docs',
+        configuration: {
+            title: 'Wearism API Reference',
+            theme: 'purple',
+            spec: { content: () => app.swagger() },
+        },
+        // Disable in production — docs should be internal only
+        ...(process.env.NODE_ENV === 'production' ? { enabled: false } : {}),
+    });
+    
+    // Global Rate Limiting — Use Redis to survive restarts and scale, except in tests
+    if (process.env.NODE_ENV !== 'test') {
+        await app.register(fastifyRateLimit, {
+            redis: getRedisClient(),
+            nameSpace: 'rl:',
+            
+            // Global defaults — every endpoint gets these unless overridden
+            max: 100,
+            timeWindow: '1 minute',
+            
+            // Key by user ID if authenticated, else by IP
+            keyGenerator: (request) => {
+                return request.user?.sub || request.ip;
+            },
+            
+            // Return standardised error
+            errorResponseBuilder: (request, context) => ({
+                success: false,
+                error: 'Too many requests',
+                retryAfter: context.after,
+                limit: context.max,
+                remaining: 0,
+            }),
+            
+            // Add rate limit headers to every response
+            addHeaders: {
+                'x-ratelimit-limit':     true,
+                'x-ratelimit-remaining': true,
+                'x-ratelimit-reset':     true,
+                'retry-after':           true,
+            },
+            
+            // Skip rate limiting for health check
+            skip: (request) => request.url === '/health',
+        });
+    } else {
+        // Fastify requires rate limit plugin to be registered if routes use it
+        await app.register(fastifyRateLimit, {
+            max: 1000,
+            timeWindow: '1 minute',
+        });
+    }
 
     // JWT
     await app.register(fastifyJwt, { secret: process.env.JWT_SECRET });
 
-    // Multipart uploads (for avatars)
+    // Multipart uploads (for avatars and posts)
     await app.register(fastifyMultipart, {
+        attachFieldsToBody: 'keyValues', // Standardize: provides plain strings to AJV
         limits: {
             fileSize: 5 * 1024 * 1024, // 5MB hard limit
             files: 1, // one file per request
         },
+    });
+
+    // Health check — exempt from rate limiting, always first route
+    app.get('/health', {
+        schema: {
+            tags: ['System'],
+            summary: 'Health check',
+            description: 'Returns server status, timestamp, and version.',
+            security: [],
+            response: { 200: {
+                type: 'object',
+                properties: {
+                    status:    { type: 'string' },
+                    timestamp: { type: 'string' },
+                    version:   { type: 'string' },
+                },
+            }},
+        },
+        config: { rateLimit: false },
+    }, async () => ({
+        status:    'ok',
+        timestamp: new Date().toISOString(),
+        version:   process.env.npm_package_version || '1.0.0',
+    }));
+
+    // Global error handler
+    app.setErrorHandler((error, request, reply) => {
+        // Validation error from AJV
+        if (error.validation) {
+            return reply.status(400).send({
+                success: false,
+                error: 'Validation failed',
+                details: error.validation.map((e) => ({
+                    field: e.instancePath.replace('/', '') || e.params?.missingProperty,
+                    message: e.message,
+                })),
+            });
+        }
+
+        // Rate limit error (already formatted by plugin via errorResponseBuilder)
+        if (error.statusCode === 429) {
+            return reply.status(429).send(error);
+        }
+
+        // Known application error (thrown from service layer or Supabase AuthApiError)
+        const statusCode = error.statusCode || error.status;
+        if (statusCode) {
+            return reply.status(statusCode).send({
+                success: false,
+                error: error.message,
+            });
+        }
+
+        // Unexpected error — log it, return generic 500
+        app.log.error(error);
+        return reply.status(500).send({
+            success: false,
+            error: 'Internal server error',
+        });
+    });
+
+    // 404 handler
+    app.setNotFoundHandler((request, reply) => {
+        reply.status(404).send({
+            success: false,
+            error: `Route ${request.method} ${request.url} not found`,
+        });
     });
 
     // Register feature modules
@@ -92,23 +270,14 @@ export async function buildApp() {
     await app.register(cartRoutes,     { prefix: '/cart'     });
     await app.register(ordersRoutes,   { prefix: '/orders'   });
 
+    // Notifications
+    await app.register(notificationsRoutes, { prefix: '/notifications' });
+
     // Trending score refresh job — every 15 minutes (skipped in test)
     if (process.env.NODE_ENV !== 'test') {
         refreshTrendingCache(); // warm cache on startup
         setInterval(refreshTrendingCache, 15 * 60 * 1000);
     }
-
-    // Global error handler
-    app.setErrorHandler((error, request, reply) => {
-        app.log.error(error);
-        reply.status(error.statusCode || 500).send({
-            success: false,
-            error: error.message || 'Internal Server Error',
-        });
-    });
-
-    // Health check route
-    app.get('/health', async () => ({ status: 'ok' }));
 
     return app;
 }

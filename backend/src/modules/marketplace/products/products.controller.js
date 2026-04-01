@@ -12,7 +12,7 @@ export const productsController = {
   // GET /products
   async browseProducts(request, reply) {
     const result = await productsService.browseProducts(request.query);
-    return reply.send({ success: true, ...result });
+    return reply.send(result);
   },
 
   // GET /products/:id

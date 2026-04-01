@@ -1,6 +1,7 @@
-// src/modules/social/follows/follows.service.js
 import { supabase } from '../../../config/supabase.js';
+import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
 import { invalidateUserFeed } from '../../../services/feedCache.js';
+import { sendToUser } from '../../../services/notifications.js';
 
 export const followsService = {
 
@@ -39,6 +40,17 @@ export const followsService = {
         // Invalidate follower's feed — they now see this user's posts
         await invalidateUserFeed(followerId);
 
+        // Notify the user being followed
+        supabase.from('profiles').select('full_name').eq('id', followerId).single()
+            .then(({ data }) => {
+                const followerName = data?.full_name || 'Someone';
+                sendToUser(followingId, {
+                    title: 'New follower',
+                    body: `@${followerName} started following you`,
+                    data: { type: 'follow', userId: followerId },
+                }).catch(() => {});
+            }).catch(() => {});
+
         return { following: true };
     },
 
@@ -62,8 +74,8 @@ export const followsService = {
 
 
     // ── LIST FOLLOWERS ────────────────────────────────────────
-    async listFollowers(userId, { page, limit }) {
-        const from = (page - 1) * limit;
+    async listFollowers(userId, query) {
+        const { page, limit, from } = parsePagination(query);
         const { data, error, count } = await supabase
             .from('follows')
             .select(`follower_id, created_at, profiles!follower_id(id, full_name, avatar_url)`, { count: 'exact' })
@@ -73,13 +85,13 @@ export const followsService = {
             .range(from, from + limit - 1);
 
         if (error) throw error;
-        return { followers: data || [], pagination: { total: count, page, limit, total_pages: Math.ceil(count / limit) } };
+        return paginatedResult(data || [], count || 0, page, limit);
     },
 
 
     // ── LIST FOLLOWING ────────────────────────────────────────
-    async listFollowing(userId, { page, limit }) {
-        const from = (page - 1) * limit;
+    async listFollowing(userId, query) {
+        const { page, limit, from } = parsePagination(query);
         const { data, error, count } = await supabase
             .from('follows')
             .select(`following_id, created_at, profiles!following_id(id, full_name, avatar_url)`, { count: 'exact' })
@@ -89,7 +101,7 @@ export const followsService = {
             .range(from, from + limit - 1);
 
         if (error) throw error;
-        return { following: data || [], pagination: { total: count, page, limit, total_pages: Math.ceil(count / limit) } };
+        return paginatedResult(data || [], count || 0, page, limit);
     },
 
 
