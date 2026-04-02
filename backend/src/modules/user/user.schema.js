@@ -46,6 +46,18 @@ export const getProfileSchema = {
                     weight_kg: { type: 'number', nullable: true },
                     body_type: { type: 'string', nullable: true },
                     skin_tone: { type: 'string', nullable: true },
+                    recent_posts: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                id: { type: 'string', format: 'uuid' },
+                                image_url: { type: 'string', nullable: true },
+                                created_at: { type: 'string', format: 'date-time' },
+                            },
+                            additionalProperties: true,
+                        },
+                    },
                     created_at: { type: 'string', format: 'date-time' },
                     followers_count: { type: 'integer' },
                     following_count: { type: 'integer' },
