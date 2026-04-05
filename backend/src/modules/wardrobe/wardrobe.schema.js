@@ -45,6 +45,20 @@ export const updateItemSchema = {
     },
 };
 
+// POST /wardrobe/items/batch — accepts multipart/form-data with multiple image files
+// item_ids is a JSON-encoded array of UUIDs; file field is repeated once per image
+export const batchCreateItemsSchema = {
+    body: {
+        type: 'object',
+        required: ['item_ids'],
+        properties: {
+            item_ids: { type: 'string' }, // JSON array of UUIDs, e.g. '["uuid1","uuid2"]'
+            file: {},                      // Buffer or Buffer[] — skips strict type validation
+        },
+        additionalProperties: false,
+    },
+};
+
 // GET /wardrobe/items — list with filters and pagination
 export const listItemsSchema = {
     querystring: {

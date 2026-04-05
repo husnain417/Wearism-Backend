@@ -10,23 +10,29 @@ export const recommendationsService = {
 
     // ── GENERATE RECOMMENDATIONS ────────────────────────
     // Called when user requests a refresh or has no recommendations yet
-    async generateRecommendations(userId, { occasion, season, weather, sample_size = 25 } = {}) {
+    async generateRecommendations(userId, { occasion, season, weather, sample_size = 25, force_refresh = false } = {}) {
 
-        // Check if fresh recommendations already exist
-        const cacheThreshold = new Date(
-            Date.now() - RECOMMENDATION_CACHE_HOURS * 60 * 60 * 1000
-        ).toISOString();
+        // Skip cache when client asks for a new batch (schema: force_refresh)
+        if (!force_refresh) {
+            const cacheThreshold = new Date(
+                Date.now() - RECOMMENDATION_CACHE_HOURS * 60 * 60 * 1000
+            ).toISOString();
 
-        const { count: freshCount } = await supabase
-            .from('recommendations')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', userId)
-            .eq('is_dismissed', false)
-            .is('deleted_at', null)
-            .gte('created_at', cacheThreshold);
+            const { count: freshCount } = await supabase
+                .from('recommendations')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .eq('is_dismissed', false)
+                .is('deleted_at', null)
+                .gte('created_at', cacheThreshold);
 
-        if (freshCount > 0) {
-            return { message: 'Recent recommendations exist. Use /recommendations to view them.', generated: 0 };
+            if (freshCount > 0) {
+                return {
+                    message:
+                        'You already have outfit ideas from the last few hours. Scroll to AI Fits — items still scoring show as “Scoring”. Tap Regenerate below if you want a fresh batch anyway.',
+                    generated: 0,
+                };
+            }
         }
 
         // Fetch classified wardrobe items
@@ -98,7 +104,7 @@ export const recommendationsService = {
             // Fetch full item details for the AI rating job
             const { data: itemDetails } = await supabase
                 .from('wardrobe_items')
-                .select('id, wardrobe_slot, fashionclip_main_category, fashionclip_attributes, color_dominant_rgb, pattern_strength, texture_score, formality_score, is_accessory, tag')
+                .select('id, wardrobe_slot, fashionclip_main_category, fashionclip_attributes, color_dominant_rgb, pattern_strength, texture_score, formality_score, is_accessory, tag, colors, pattern, fit')
                 .in('id', combo.item_ids);
 
             // Queue AI rating job

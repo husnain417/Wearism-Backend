@@ -1,6 +1,7 @@
 // src/services/feedCache.js
 import { getRedisClient } from '../config/redis.js';
 import { supabase } from '../config/supabase.js';
+import { signedUrlForPostImage } from './postImageUrl.js';
 
 const FEED_KEY = (userId) => `feed:${userId}`;
 const FEED_TTL = 30 * 60;   // 30 minutes
@@ -15,14 +16,13 @@ export async function buildUserFeed(userId) {
         .eq('follower_id', userId)
         .is('deleted_at', null);
 
-    if (!follows || follows.length === 0) {
-        // User follows nobody — cache empty, return empty
+    const followingIds = [userId, ...(follows?.map(f => f.following_id) ?? [])];
+
+    if (followingIds.length === 0) {
         const redis = getRedisClient();
         await redis.setex(FEED_KEY(userId), FEED_TTL, JSON.stringify([]));
         return [];
     }
-
-    const followingIds = follows.map(f => f.following_id);
 
     // Fetch recent posts from followed users (last 30 days)
     const since = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
@@ -30,7 +30,7 @@ export async function buildUserFeed(userId) {
     const { data: posts } = await supabase
         .from('posts')
         .select(`
-      id, user_id, caption, image_url, outfit_id,
+      id, user_id, caption, image_url, image_path, outfit_id,
       likes_count, comments_count, occasion, season,
       tags, visibility, created_at,
       profiles!user_id(id, full_name, avatar_url)`,
@@ -43,7 +43,13 @@ export async function buildUserFeed(userId) {
         .order('created_at', { ascending: false })
         .limit(MAX_FEED_SIZE);
 
-    const feed = posts || [];
+    const feed = (posts || []).map((post) => {
+        if (!post.image_url && post.image_path) {
+            const image_url = signedUrlForPostImage(post.image_path);
+            return { ...post, image_url };
+        }
+        return post;
+    });
 
     // Cache as JSON string (sorted set would need score per item — JSON is simpler here)
     const redis = getRedisClient();
@@ -65,8 +71,39 @@ export async function getUserFeed(userId, { page = 1, limit = 20 } = {}) {
     }
 
     const from = (page - 1) * limit;
+    const pagePosts = feed.slice(from, from + limit);
+
+    // Enrich with per-user like status
+    const postIds = pagePosts.map(p => p.id);
+    const { data: likes } = postIds.length === 0
+        ? { data: [] }
+        : await supabase
+            .from('post_likes')
+            .select('post_id')
+            .eq('user_id', userId)
+            .in('post_id', postIds);
+
+    const likedSet = new Set((likes || []).map(l => l.post_id));
+
+    // Fetch fresh counts from DB
+    const { data: freshCounts } = postIds.length === 0
+        ? { data: [] }
+        : await supabase
+            .from('posts')
+            .select('id, likes_count, comments_count')
+            .in('id', postIds);
+
+    const countsMap = new Map((freshCounts || []).map(p => [p.id, p]));
+
+    const enriched = pagePosts.map(p => ({
+        ...p,
+        viewer_has_liked: likedSet.has(p.id),
+        likes_count: countsMap.get(p.id)?.likes_count ?? p.likes_count,
+        comments_count: countsMap.get(p.id)?.comments_count ?? p.comments_count,
+    }));
+
     return {
-        posts: feed.slice(from, from + limit),
+        posts: enriched,
         total: feed.length,
         from_cache: cached !== null,
     };

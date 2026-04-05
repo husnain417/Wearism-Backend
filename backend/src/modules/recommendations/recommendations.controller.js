@@ -5,11 +5,25 @@ export const recommendationsController = {
 
     // POST /recommendations/generate
     async generate(request, reply) {
-        const result = await recommendationsService.generateRecommendations(
-            request.user.sub,
-            request.body || {}
-        );
-        return reply.status(202).send({ success: true, ...result });
+        try {
+            const result = await recommendationsService.generateRecommendations(
+                request.user.sub,
+                request.body || {}
+            );
+            return reply.status(202).send({ success: true, ...result });
+        } catch (err) {
+            if (err.statusCode) throw err;
+            const m = err?.message || '';
+            // AI HTTP bridge / network — avoid generic 500 so the app can show a clear message
+            if (m.includes('FastAPI') || m.toLowerCase().includes('fetch')) {
+                return reply.status(502).send({
+                    success: false,
+                    error:
+                        'AI scoring service is unavailable or rejected the request. Ensure the AI service is running, then try again.',
+                });
+            }
+            throw err;
+        }
     },
 
     // GET /recommendations

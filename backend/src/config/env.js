@@ -11,6 +11,9 @@ export const envSchema = {
     REDIS_URL: { type: 'string' },
     AI_SHARED_SECRET: { type: 'string' },
     AI_SERVICE_URL: { type: 'string', default: 'http://localhost:8000' },
-    CLOUDINARY_URL: { type: 'string' }
+    CLOUDINARY_URL: { type: 'string' },
+    // Optional. When set (>=1), caps POST /recommendations/generate per user per hour.
+    // Otherwise: 5 in production/test, 100 in development.
+    RECOMMENDATIONS_GENERATE_RATE_MAX: { type: 'integer', minimum: 1, maximum: 100000 },
   }
 };

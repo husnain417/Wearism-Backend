@@ -1,6 +1,7 @@
 // src/services/trendingScore.js
 import { supabase } from '../config/supabase.js';
 import { getRedisClient } from '../config/redis.js';
+import { signedUrlForPostImage } from './postImageUrl.js';
 
 const TRENDING_CACHE_KEY = 'trending:posts';
 const TRENDING_TTL = 15 * 60;        // 15 minutes in seconds
@@ -23,7 +24,7 @@ export async function refreshTrendingCache() {
         const { data: posts, error } = await supabase
             .from('posts')
             .select(`
-        id, user_id, caption, image_url, outfit_id,
+        id, user_id, caption, image_url, image_path, outfit_id,
         likes_count, comments_count, report_count,
         occasion, season, tags, created_at,
         profiles!user_id(id, full_name, avatar_url)`,
@@ -43,8 +44,16 @@ export async function refreshTrendingCache() {
             .sort((a, b) => b._score - a._score)
             .slice(0, TRENDING_POST_LIMIT);
 
+        const scoredWithImages = scored.map((p) => {
+            if (!p.image_url && p.image_path) {
+                const image_url = signedUrlForPostImage(p.image_path);
+                return { ...p, image_url };
+            }
+            return p;
+        });
+
         // Update trending_score column in DB for the top posts
-        for (const post of scored.slice(0, 20)) {
+        for (const post of scoredWithImages.slice(0, 20)) {
             await supabase
                 .from('posts')
                 .update({ trending_score: post._score })
@@ -56,10 +65,10 @@ export async function refreshTrendingCache() {
         await redis.setex(
             TRENDING_CACHE_KEY,
             TRENDING_TTL,
-            JSON.stringify(scored),
+            JSON.stringify(scoredWithImages),
         );
 
-        console.log(`[Trending] Refreshed — top score: ${scored[0]?._score?.toFixed(2)}`);
+        console.log(`[Trending] Refreshed — top score: ${scoredWithImages[0]?._score?.toFixed(2)}`);
     } catch (err) {
         console.error('[Trending] Refresh failed:', err.message);
     }

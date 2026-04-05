@@ -2,6 +2,13 @@ import { userService } from './user.service.js';
 import { supabase } from '../../config/supabase.js';
 
 export const userController = {
+    // GET /users/:id/profile — public summary for another user
+    async getPublicProfile(request, reply) {
+        const targetId = request.params.id;
+        const profile = await userService.getPublicProfileById(targetId);
+        return reply.send({ success: true, profile });
+    },
+
     // GET /user/profile
     async getProfile(request, reply) {
         const userId = request.user.sub;

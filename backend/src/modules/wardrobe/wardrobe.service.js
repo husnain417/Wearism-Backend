@@ -69,6 +69,72 @@ export const wardrobeService = {
         return data;
     },
 
+    // ── BATCH CREATE ITEMS ────────────────────────────────
+    async batchCreateItems(userId, itemIds, files) {
+        if (!Array.isArray(itemIds) || itemIds.length === 0) {
+            throw { statusCode: 400, message: 'item_ids must be a non-empty array.' };
+        }
+        if (itemIds.length > 20) {
+            throw { statusCode: 400, message: 'Maximum 20 items per batch.' };
+        }
+        if (files.length !== itemIds.length) {
+            throw { statusCode: 400, message: `Expected ${itemIds.length} files but received ${files.length}.` };
+        }
+
+        // Wardrobe size limit — check upfront for the whole batch
+        const MAX_WARDROBE_SIZE = 500;
+        const { count } = await supabase
+            .from('wardrobe_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .is('deleted_at', null);
+
+        if ((count || 0) + itemIds.length > MAX_WARDROBE_SIZE) {
+            throw {
+                statusCode: 400,
+                message: `Wardrobe limit would be exceeded. You have ${count} items; limit is ${MAX_WARDROBE_SIZE}.`,
+            };
+        }
+
+        // Upload each image and prepare DB rows
+        const rows = [];
+        for (let i = 0; i < itemIds.length; i++) {
+            const item_id = itemIds[i];
+            const file = files[i];
+            const image_path = `${userId}/${item_id}.jpg`;
+
+            if (file) {
+                const buffer = Buffer.isBuffer(file) ? file : Buffer.from(file);
+                const { error: uploadError } = await supabase.storage
+                    .from('wardrobe')
+                    .upload(image_path, buffer, { contentType: 'image/jpeg', upsert: true });
+                if (uploadError) throw uploadError;
+            }
+
+            const { data: signedData, error: signedError } = await supabase.storage
+                .from('wardrobe')
+                .createSignedUrl(image_path, 60 * 60 * 24 * 365);
+            if (signedError) throw signedError;
+
+            rows.push({
+                id: item_id,
+                user_id: userId,
+                image_url: signedData.signedUrl,
+                image_path,
+                condition: 'good',
+            });
+        }
+
+        // Single batch insert for all rows
+        const { data, error } = await supabase
+            .from('wardrobe_items')
+            .insert(rows)
+            .select();
+
+        if (error) throw error;
+        return data;
+    },
+
     // ── GET SINGLE ITEM ───────────────────────────────────
     async getItem(userId, itemId) {
         const { data, error } = await supabase

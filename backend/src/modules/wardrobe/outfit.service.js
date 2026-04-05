@@ -52,7 +52,7 @@ export const outfitService = {
                 *,
                 outfit_items (
                     position,
-                    wardrobe_items ( id, name, image_url, category, subcategory, colors )
+                    wardrobe_items ( id, name, image_url, category, subcategory, colors, fashionclip_main_category )
                 )
             `)
             .eq('id', outfitId)
@@ -61,7 +61,15 @@ export const outfitService = {
             .single();
 
         if (error) throw { statusCode: 404, message: 'Outfit not found.' };
-        return data;
+
+        // Mobile + clients expect flat `items` (sorted); Supabase returns outfit_items → wardrobe_items
+        const rows = data.outfit_items ?? [];
+        const items = rows
+            .filter((row) => row.wardrobe_items)
+            .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+            .map((row) => ({ ...row.wardrobe_items }));
+
+        return { ...data, items };
     },
 
     // ── LIST OUTFITS ──────────────────────────────────────

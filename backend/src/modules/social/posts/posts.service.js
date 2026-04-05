@@ -2,20 +2,12 @@
 import { supabase } from '../../../config/supabase.js';
 import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
 import { checkPost } from '../../../services/nsfwFilter.js';
-import { invalidateFollowerFeeds } from '../../../services/feedCache.js';
+import { invalidateFollowerFeeds, invalidateUserFeed } from '../../../services/feedCache.js';
 import { sendToUser } from '../../../services/notifications.js';
+import { signedUrlForPostImage } from '../../../services/postImageUrl.js';
 
 const MAX_CAPTION_LENGTH = 500;
 const MAX_TAGS = 10;
-
-// ── Helper: Generate signed URL for a post image ────────────────
-async function signPostUrl(imagePath) {
-    if (!imagePath) return null;
-    const { data, error } = await supabase.storage
-        .from('posts')
-        .createSignedUrl(imagePath, 60 * 60 * 24 * 365); // 1 year
-    return data?.signedUrl || null;
-}
 
 export const postsService = {
 
@@ -80,6 +72,9 @@ export const postsService = {
         invalidateFollowerFeeds(userId).catch(err =>
             console.error('[Feed] Invalidation failed:', err.message)
         );
+        invalidateUserFeed(userId).catch(err =>
+            console.error('[Feed] Invalidation failed:', err.message)
+        );
 
         return post;
     },
@@ -121,8 +116,7 @@ export const postsService = {
             .eq('post_id', postId)
             .eq('user_id', requestingUserId);
 
-        // Generate signed URL
-        const signedUrl = await signPostUrl(data.image_path);
+        const signedUrl = signedUrlForPostImage(data.image_path);
 
         return { 
             ...data, 
@@ -168,13 +162,10 @@ export const postsService = {
         const { data, error, count } = await supabaseQuery;
         if (error) throw error;
 
-        // Generate signed URLs for all posts in parallel
-        const postsWithSignedUrls = await Promise.all(
-            (data || []).map(async (post) => ({
-                ...post,
-                image_url: await signPostUrl(post.image_path),
-            }))
-        );
+        const postsWithSignedUrls = (data || []).map((post) => ({
+            ...post,
+            image_url: signedUrlForPostImage(post.image_path),
+        }));
 
         return paginatedResult(postsWithSignedUrls, count || 0, page, limit);
     },

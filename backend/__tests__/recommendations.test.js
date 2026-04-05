@@ -182,7 +182,8 @@ describe('Phase 5 — Recommendations Endpoints', () => {
 
         it('returns 202 with generated:0 on cache hit', async () => {
             mockRecommendationsService.generateRecommendations.mockResolvedValueOnce({
-                message: 'Recent recommendations exist. Use /recommendations to view them.',
+                message:
+                    'You already have outfit ideas from the last few hours. Scroll to AI Fits — items still scoring show as “Scoring”. Tap Regenerate below if you want a fresh batch anyway.',
                 generated: 0,
             });
 
@@ -197,7 +198,7 @@ describe('Phase 5 — Recommendations Endpoints', () => {
             expect(res.statusCode).toBe(202);
             const body = JSON.parse(res.payload);
             expect(body.generated).toBe(0);
-            expect(body.message).toContain('Recent recommendations exist');
+            expect(body.message).toContain('already have outfit ideas');
         });
 
         it('returns 400 when user has fewer than 2 classified items', async () => {

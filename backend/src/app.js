@@ -13,6 +13,7 @@ import zlib from 'node:zlib';
 import { envSchema } from './config/env.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
+import { usersRoutes } from './modules/user/users.routes.js';
 import { wardrobeRoutes } from './modules/wardrobe/wardrobe.routes.js';
 import { outfitRoutes } from './modules/wardrobe/outfit.routes.js';
 import { recommendationsRoutes } from './modules/recommendations/recommendations.routes.js';
@@ -144,14 +145,19 @@ export async function buildApp() {
                 return request.user?.sub || request.ip;
             },
             
-            // Return standardised error
-            errorResponseBuilder: (request, context) => ({
-                success: false,
-                error: 'Too many requests',
-                retryAfter: context.after,
-                limit: context.max,
-                remaining: 0,
-            }),
+            // Must return an Error with statusCode — plain objects become unhandled 500s
+            errorResponseBuilder: (request, context) => {
+                const err = new Error('Too many requests');
+                err.statusCode = context.statusCode ?? 429;
+                err.rateLimitPayload = {
+                    success: false,
+                    error: 'Too many requests',
+                    retryAfter: context.after,
+                    limit: context.max,
+                    remaining: 0,
+                };
+                return err;
+            },
             
             // Add rate limit headers to every response
             addHeaders: {
@@ -175,12 +181,12 @@ export async function buildApp() {
     // JWT
     await app.register(fastifyJwt, { secret: process.env.JWT_SECRET });
 
-    // Multipart uploads (for avatars and posts)
+    // Multipart uploads (for avatars, posts, and batch wardrobe uploads)
     await app.register(fastifyMultipart, {
         attachFieldsToBody: 'keyValues', // Standardize: provides plain strings to AJV
         limits: {
-            fileSize: 5 * 1024 * 1024, // 5MB hard limit
-            files: 1, // one file per request
+            fileSize: 5 * 1024 * 1024, // 5MB per file
+            files: 20,                  // up to 20 files per request (batch wardrobe upload)
         },
     });
 
@@ -221,9 +227,13 @@ export async function buildApp() {
             });
         }
 
-        // Rate limit error (already formatted by plugin via errorResponseBuilder)
+        // Rate limit (@fastify/rate-limit throws Error with statusCode 429)
         if (error.statusCode === 429) {
-            return reply.status(429).send(error);
+            const body = error.rateLimitPayload ?? {
+                success: false,
+                error: error.message || 'Too many requests',
+            };
+            return reply.status(429).send(body);
         }
 
         // Known application error (thrown from service layer or Supabase AuthApiError)
@@ -254,6 +264,7 @@ export async function buildApp() {
     // Register feature modules
     await app.register(authRoutes, { prefix: '/auth' });
     await app.register(userRoutes, { prefix: '/user' });
+    await app.register(usersRoutes, { prefix: '/users' });
     await app.register(wardrobeRoutes, { prefix: '/wardrobe' });
     await app.register(outfitRoutes, { prefix: '/wardrobe/outfits' });
     await app.register(recommendationsRoutes, { prefix: '/recommendations' });

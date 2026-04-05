@@ -95,6 +95,92 @@ export const wardrobeController = {
         });
     },
 
+    // POST /wardrobe/items/batch — accepts multipart/form-data with multiple images
+    async batchCreateItems(request, reply) {
+        // Parse item_ids from JSON string sent in the multipart body
+        let itemIds;
+        try {
+            itemIds = JSON.parse(request.body?.item_ids);
+        } catch {
+            throw { statusCode: 400, message: 'item_ids must be a valid JSON array string.' };
+        }
+
+        if (!Array.isArray(itemIds) || itemIds.length === 0) {
+            throw { statusCode: 400, message: 'item_ids must be a non-empty array.' };
+        }
+
+        // Normalise: file field may be a single Buffer or an array of Buffers
+        const rawFiles = request.body?.file;
+        const files = Array.isArray(rawFiles) ? rawFiles : (rawFiles ? [rawFiles] : []);
+
+        console.log(`[Batch] Creating ${itemIds.length} items for user ${request.user.sub}`);
+
+        let items;
+        try {
+            items = await wardrobeService.batchCreateItems(request.user.sub, itemIds, files);
+        } catch (error) {
+            console.error('[Batch] Failed to create items:', error.message || error);
+            throw error;
+        }
+
+        // Fire background AI jobs for each item — fire-and-forget, never blocks response
+        (async () => {
+            for (const item of items) {
+                try {
+                    // Step 2: Insert ai_results pending row
+                    const { data: aiResult, error: aiError } = await supabase
+                        .from('ai_results')
+                        .insert({
+                            user_id: request.user.sub,
+                            wardrobe_item_id: item.id,
+                            task_type: 'clothing_classification',
+                            status: 'pending',
+                        })
+                        .select('id')
+                        .single();
+
+                    if (aiError || !aiResult) throw aiError || new Error('No data from ai_results insert');
+
+                    // Step 3: Queue Celery job (with one retry)
+                    let success = false;
+                    try {
+                        await aiQueue.queueClothingClassification({
+                            itemId: item.id,
+                            imageUrl: item.image_url,
+                            aiResultId: aiResult.id,
+                        });
+                        success = true;
+                    } catch (err1) {
+                        console.warn(`[Batch] FastAPI attempt 1 failed for ${item.id}: ${err1.message}. Retrying...`);
+                        await new Promise(r => setTimeout(r, 2000));
+                        try {
+                            await aiQueue.queueClothingClassification({
+                                itemId: item.id,
+                                imageUrl: item.image_url,
+                                aiResultId: aiResult.id,
+                            });
+                            success = true;
+                        } catch (err2) {
+                            console.error(`[Batch] FastAPI attempt 2 failed for ${item.id}:`, err2.message);
+                        }
+                    }
+
+                    if (success) console.log(`[Batch] Queued classification for item ${item.id}`);
+                } catch (err) {
+                    console.error(`[Batch] Background job setup failed for item ${item.id}:`, err.message || err);
+                }
+            }
+            console.log(`[Batch] Background AI initialised for all ${items.length} items`);
+        })();
+
+        return reply.status(201).send({
+            success: true,
+            message: `${items.length} item(s) added. AI classification queued for all.`,
+            items,
+            queued: items.length,
+        });
+    },
+
     // GET /wardrobe/items
     async listItems(request, reply) {
         const result = await wardrobeService.listItems(request.user.sub, request.query);

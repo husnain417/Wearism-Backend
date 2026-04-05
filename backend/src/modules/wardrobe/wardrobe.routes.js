@@ -1,5 +1,5 @@
 import { wardrobeController } from './wardrobe.controller.js';
-import { createItemSchema, updateItemSchema, listItemsSchema } from './wardrobe.schema.js';
+import { createItemSchema, batchCreateItemsSchema, updateItemSchema, listItemsSchema } from './wardrobe.schema.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { validateUUID } from '../../middleware/validateUUID.js';
 
@@ -10,6 +10,11 @@ export async function wardrobeRoutes(fastify) {
         schema: { ...createItemSchema, tags: ['Wardrobe'], summary: 'Create a wardrobe item after image upload' },
         config: { rateLimit: { max: 30, timeWindow: '1 hour' } },
     }, wardrobeController.createItem);
+
+    fastify.post('/items/batch', {
+        schema: { ...batchCreateItemsSchema, tags: ['Wardrobe'], summary: 'Batch-create up to 20 wardrobe items in one request' },
+        config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+    }, wardrobeController.batchCreateItems);
 
     fastify.get('/items', {
         schema: { ...listItemsSchema, tags: ['Wardrobe'], summary: 'List wardrobe items with filters' },

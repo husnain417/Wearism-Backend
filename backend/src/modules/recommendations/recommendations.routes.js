@@ -4,12 +4,28 @@ import { generateRecommendationsSchema, listRecommendationsSchema } from './reco
 import { authenticate } from '../../middleware/authenticate.js';
 import { validateUUID } from '../../middleware/validateUUID.js';
 
+/** Per-user key; 5/hour in production + Jest — relaxed in development so iteration is not blocked. */
+function generateRouteRateLimit() {
+    const override = process.env.RECOMMENDATIONS_GENERATE_RATE_MAX;
+    if (override != null && override !== '' && Number.isFinite(Number(override))) {
+        const n = Math.trunc(Number(override));
+        if (n >= 1) return { max: n, timeWindow: '1 hour' };
+    }
+    if (process.env.NODE_ENV === 'production') {
+        return { max: 5, timeWindow: '1 hour' };
+    }
+    if (process.env.NODE_ENV === 'test') {
+        return { max: 5, timeWindow: '1 hour' };
+    }
+    return { max: 100, timeWindow: '1 hour' };
+}
+
 export async function recommendationsRoutes(fastify) {
     fastify.addHook('preHandler', authenticate);
 
     fastify.post('/generate', {
         schema: { ...generateRecommendationsSchema, tags: ['AI'], summary: 'Generate a fresh batch of outfit recommendations' },
-        config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+        config: { rateLimit: generateRouteRateLimit() },
     }, recommendationsController.generate);
 
     fastify.get('/', {
