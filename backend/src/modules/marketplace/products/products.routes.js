@@ -48,7 +48,9 @@ export async function productsRoutes(fastify) {
 
   fastify.post('/:id/images', {
     preHandler: [authenticate, requireVendor],
-    schema: { ...addImageSchema, tags: ['Marketplace'], summary: 'Add product image (max 6)' },
+    // Accepts multipart/form-data (file) OR JSON body (image_path).
+    // JSON schema validation breaks multipart, so keep this route permissive.
+    schema: { tags: ['Marketplace'], summary: 'Add product image (max 6)' },
   }, productsController.addImage);
 
   fastify.delete('/:id/images/:imageId', {

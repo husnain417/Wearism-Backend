@@ -3,10 +3,12 @@ import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
 import { sendToUser } from '../../../services/notifications.js';
 
 const TRANSITIONS = {
-  pending_confirmation: ['confirmed','cancelled'],
-  confirmed:            ['shipped','cancelled'],
-  shipped:              ['delivered'],
-  delivered:            ['completed'],
+  // Keep in sync with DB enum `order_status_enum` (see `supabase/migrations/DB/002_enums.sql`).
+  // Current DB enum values: pending, confirmed, processing, shipped, delivered, cancelled, refunded
+  pending:   ['confirmed', 'cancelled'],
+  confirmed: ['processing', 'cancelled'],
+  processing:['shipped', 'cancelled'],
+  shipped:   ['delivered'],
 };
 
 export const ordersService = {
@@ -43,7 +45,7 @@ export const ordersService = {
         delivery_address, delivery_city, delivery_phone,
         delivery_notes: delivery_notes||null,
         subtotal: total, total_amount: total,
-        payment_method: 'cash_on_delivery', status: 'pending_confirmation',
+        payment_method: 'cash_on_delivery', status: 'pending',
       }).select().single();
 
       if (oErr) throw oErr;
@@ -87,7 +89,7 @@ export const ordersService = {
   async listBuyerOrders(userId, query) {
     const { page, limit, from } = parsePagination(query);
     const { data, count, error } = await supabase.from('orders')
-      .select(`*, order_items(*), vendor_profiles!vendor_id(shop_name, shop_logo_url)`,
+      .select(`*, order_items(*), vendor_profiles!vendor_id(shop_name)`,
                { count:'exact' })
       .eq('buyer_id', userId).order('created_at',{ascending:false})
       .range(from, from+limit-1);
@@ -123,20 +125,20 @@ export const ordersService = {
     const now = new Date().toISOString();
     const tsMap = {
       confirmed: { confirmed_at:now },
+      processing:{ processed_at:now },
       shipped:   { shipped_at:now   },
-      delivered: { delivered_at:now, completed_at:now, status:'completed' },
-      completed: { completed_at:now },
+      delivered: { delivered_at:now },
       cancelled: { cancelled_at:now, cancelled_reason:cancelledReason||null },
     };
 
-    const patch = { status: newStatus === 'delivered' ? 'completed' : newStatus, ...tsMap[newStatus] };
+    const patch = { status: newStatus, ...(tsMap[newStatus] || {}) };
 
     const { data, error } = await supabase.from('orders')
       .update(patch).eq('id',orderId).select().single();
     if (error) throw error;
 
-    // Mark resale products as sold when order completes
-    if (patch.status === 'completed') {
+    // Mark resale products as sold when delivered
+    if (patch.status === 'delivered') {
       const { data: oi } = await supabase.from('order_items')
         .select('product_id').eq('order_id',orderId);
       for (const item of oi||[]) {
@@ -156,7 +158,7 @@ export const ordersService = {
         } else if (patch.status === 'shipped') {
             title = 'Order Shipped';
             body = 'Your order is on the way';
-        } else if (patch.status === 'completed') {
+        } else if (patch.status === 'delivered') {
             title = 'Order Delivered';
             body = 'Your order has been delivered';
         }
@@ -178,7 +180,7 @@ export const ordersService = {
     const { data: order } = await supabase.from('orders')
       .select('id, status').eq('id',orderId).eq('buyer_id',userId).single();
     if (!order) throw { statusCode:404, message:'Order not found.' };
-    if (order.status !== 'pending_confirmation')
+    if (order.status !== 'pending')
       throw { statusCode:400, message:'Only pending orders can be cancelled.' };
 
     // Restore stock

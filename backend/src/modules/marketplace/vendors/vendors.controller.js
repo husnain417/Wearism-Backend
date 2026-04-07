@@ -27,6 +27,18 @@ export const vendorsController = {
     return reply.send({ success: true, ...stats });
   },
 
+  // GET /vendors/me/products
+  async getMyProducts(request, reply) {
+    const products = await vendorsService.getMyProducts(request.user.sub);
+    return reply.send({ success: true, products });
+  },
+
+  // GET /vendors/me/products/:productId
+  async getMyProduct(request, reply) {
+    const product = await vendorsService.getMyProduct(request.user.sub, request.params.productId);
+    return reply.send({ success: true, product });
+  },
+
   // GET /vendors/:vendorId
   async getPublicProfile(request, reply) {
     const vendor = await vendorsService.getPublicProfile(request.params.vendorId);

@@ -6,12 +6,12 @@ const MAX_IMAGES = 6;
 export const productsService = {
 
   async createProduct(vendorId, body) {
-    const { name, description, category, brand, condition, price,
+    const { name, description, category, condition, price,
             original_price, stock_quantity, tags } = body;
 
     const { data, error } = await supabase.from('products').insert({
       vendor_id: vendorId, name, description: description||null,
-      category, brand: brand||null, condition: condition||'new',
+      category, condition: condition||'new',
       price, original_price: original_price||null,
       stock_quantity: stock_quantity??1, tags: tags||[], status: 'draft',
     }).select().single();
@@ -28,7 +28,7 @@ export const productsService = {
     let q = supabase.from('products')
       .select(`id, name, category, condition, price, original_price,
         primary_image_url, stock_quantity, is_resale, created_at,
-        vendor_profiles!vendor_id(id, shop_name, shop_logo_url)`, { count:'exact' })
+        vendor_profiles!vendor_id(id, shop_name)`, { count:'exact' })
       .eq('status','active').is('deleted_at',null).gt('stock_quantity',0)
       .range(from, from + limit - 1);
 
@@ -57,7 +57,7 @@ export const productsService = {
 
   async getProduct(productId) {
     const { data, error } = await supabase.from('products')
-      .select(`*, vendor_profiles!vendor_id(id,shop_name,shop_logo_url,avg_rating),
+      .select(`*, vendor_profiles!vendor_id(id,shop_name,avg_rating),
                product_images(id,image_url,is_primary,sort_order)`)
       .eq('id', productId).eq('status','active').is('deleted_at',null).single();
     if (error) throw { statusCode:404, message:'Product not found.' };
@@ -66,15 +66,16 @@ export const productsService = {
 
 
   async updateProduct(vendorId, productId, updates) {
-    const allowed = ['name','description','category','brand','condition',
+    const allowed = ['name','description','category','condition',
                      'price','original_price','stock_quantity','tags','status'];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k,v]) => allowed.includes(k) && v !== undefined)
     );
     const { data, error } = await supabase.from('products')
       .update(filtered).eq('id',productId).eq('vendor_id',vendorId)
-      .is('deleted_at',null).select().single();
-    if (error) throw { statusCode:404, message:'Product not found.' };
+      .is('deleted_at',null).select().maybeSingle();
+    if (error) throw error;
+    if (!data) throw { statusCode:404, message:'Product not found.' };
     return data;
   },
 

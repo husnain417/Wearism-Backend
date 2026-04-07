@@ -22,7 +22,7 @@ export const ordersController = {
 
     const { data: order, error } = await supabase
       .from('orders')
-      .select(`*, order_items(*), vendor_profiles!vendor_id(shop_name, shop_logo_url)`)
+      .select(`*, order_items(*), vendor_profiles!vendor_id(shop_name)`)
       .eq('id', request.params.id)
       .single();
 

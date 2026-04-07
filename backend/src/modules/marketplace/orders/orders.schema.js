@@ -20,7 +20,7 @@ export const listOrdersSchema = {
     type: 'object',
     properties: {
       ...paginationQuery,
-      status: { type: 'string', enum: ['pending_confirmation','confirmed','shipped','delivered','completed','cancelled'] },
+      status: { type: 'string', enum: ['pending','confirmed','processing','shipped','delivered','cancelled','refunded'] },
     },
     additionalProperties: false,
   },
