@@ -30,22 +30,19 @@ async function deleteAllUserProductImages(userId) {
 export const authService = {
     // ── SIGNUP ──────────────────────────────────────────
     async signup({ email, password, full_name, gdpr_consent }) {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.admin.createUser({
             email,
             password,
-            options: {
-                data: {
-                    full_name,
-                    gdpr_consent, // passed to trigger → stored in profiles
-                    gdpr_consent_version: '1.0',
-                },
-                // GDPR: require email verification before account is active
-                emailRedirectTo: 'exp://192.168.43.81:8081/--/auth/callback',
+            email_confirm: true,
+            user_metadata: {
+                full_name,
+                gdpr_consent,
+                gdpr_consent_version: '1.0',
             },
         });
 
         if (error) throw error;
-        return data;
+        return { user: data.user, session: null };
     },
 
     // ── VERIFY EMAIL ─────────────────────────────────────

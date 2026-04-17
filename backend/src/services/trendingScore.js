@@ -16,6 +16,47 @@ function computeScore({ likes_count, comments_count, report_count, created_at })
     return Math.max(0, raw / Math.pow(Math.max(0, ageHours) + 2, 1.5));
 }
 
+function ensurePostImageUrl(p) {
+    if (!p) return p;
+    if (!p.image_url && p.image_path) {
+        const image_url = signedUrlForPostImage(p.image_path);
+        return { ...p, image_url };
+    }
+    return p;
+}
+
+/** Search explore masonry only — DB-backed scored posts (does not read Redis trending cache). */
+export async function getExploreGridPosts(limit = 20, offset = 0) {
+    const since = new Date(Date.now() - 7 * 24 * 3600000).toISOString();
+    const fetchCap = Math.min(500, offset + limit + 100);
+
+    const { data: posts, error } = await supabase
+        .from('posts')
+        .select(`
+        id, user_id, caption, image_url, image_path, outfit_id,
+        likes_count, comments_count, report_count,
+        occasion, season, tags, created_at,
+        profiles!user_id(id, full_name, avatar_url)`)
+        .eq('visibility', 'public')
+        .eq('is_hidden', false)
+        .is('deleted_at', null)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(fetchCap);
+
+    if (error) {
+        console.error('[Explore grid] DB query failed:', error.message);
+        return [];
+    }
+
+    const scored = (posts || [])
+        .map((p) => ({ ...p, _score: computeScore(p) }))
+        .sort((a, b) => b._score - a._score)
+        .map(ensurePostImageUrl);
+
+    return scored.slice(offset, offset + limit);
+}
+
 export async function refreshTrendingCache() {
     try {
         // Fetch recent posts (last 7 days) with engagement data
@@ -44,13 +85,7 @@ export async function refreshTrendingCache() {
             .sort((a, b) => b._score - a._score)
             .slice(0, TRENDING_POST_LIMIT);
 
-        const scoredWithImages = scored.map((p) => {
-            if (!p.image_url && p.image_path) {
-                const image_url = signedUrlForPostImage(p.image_path);
-                return { ...p, image_url };
-            }
-            return p;
-        });
+        const scoredWithImages = scored.map(ensurePostImageUrl);
 
         // Update trending_score column in DB for the top posts
         for (const post of scoredWithImages.slice(0, 20)) {
@@ -83,7 +118,6 @@ export async function getTrendingPosts(limit = 20, offset = 0) {
         return posts.slice(offset, offset + limit);
     }
 
-    // Cache miss — regenerate and return
     await refreshTrendingCache();
     const fresh = await redis.get(TRENDING_CACHE_KEY);
     const posts = fresh ? JSON.parse(fresh) : [];

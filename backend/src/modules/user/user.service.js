@@ -36,6 +36,85 @@ export const userService = {
         return { ...data, profile_completion: completion };
     },
 
+    // ── DIRECTORY SEARCH (users + approved vendors) ─────
+    async searchDirectory(rawQuery, limit = 25) {
+        const query = String(rawQuery ?? '').trim().slice(0, 64);
+        if (query.length < 1) return { query: '', results: [] };
+
+        const max = Math.min(Math.max(Number(limit) || 25, 1), 50);
+        const vendorCap = Math.min(max, 25);
+        const userCap = Math.min(max, 25);
+
+        const escaped = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+        const pattern = `%${escaped}%`;
+
+        const vendorSelect = `
+          id, shop_name, brand_name, shop_logo_url, user_id,
+          profiles!user_id(full_name, avatar_url)
+        `;
+
+        const [byShop, byBrand, profilesRes] = await Promise.all([
+            supabase
+                .from('vendor_profiles')
+                .select(vendorSelect)
+                .eq('status', 'approved')
+                .ilike('shop_name', pattern)
+                .limit(vendorCap),
+            supabase
+                .from('vendor_profiles')
+                .select(vendorSelect)
+                .eq('status', 'approved')
+                .ilike('brand_name', pattern)
+                .limit(vendorCap),
+            supabase
+                .from('profiles')
+                .select('id, full_name, avatar_url')
+                .is('deleted_at', null)
+                .ilike('full_name', pattern)
+                .limit(userCap),
+        ]);
+
+        const vendorMap = new Map();
+        for (const v of [...(byShop.data || []), ...(byBrand.data || [])]) {
+            if (v?.id) vendorMap.set(v.id, v);
+        }
+
+        const vendorUserIds = new Set(
+            [...vendorMap.values()].map((v) => v.user_id).filter(Boolean),
+        );
+
+        const vendorRows = [...vendorMap.values()].map((v) => ({
+            kind: 'vendor',
+            id: v.id,
+            name: (v.shop_name || v.brand_name || 'Shop').trim(),
+            subtitle:
+                v.brand_name && v.shop_name && v.brand_name !== v.shop_name
+                    ? String(v.brand_name).trim()
+                    : null,
+            image_url: v.shop_logo_url || v.profiles?.avatar_url || null,
+            user_id: v.user_id,
+        }));
+
+        const userRows = (profilesRes.data || [])
+            .filter((p) => p?.id && !vendorUserIds.has(p.id))
+            .map((p) => ({
+                kind: 'user',
+                id: p.id,
+                name: (p.full_name || 'Member').trim(),
+                subtitle: null,
+                image_url: p.avatar_url || null,
+                user_id: p.id,
+            }));
+
+        const merged = [...vendorRows, ...userRows]
+            .sort((a, b) =>
+                a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+            )
+            .slice(0, max);
+
+        return { query, results: merged };
+    },
+
     // ── PUBLIC PROFILE (other users) ─────────────────────
     async getPublicProfileById(targetUserId) {
         const { data: profile, error } = await supabase

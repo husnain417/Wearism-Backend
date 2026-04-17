@@ -2,7 +2,7 @@
 import { supabase } from '../../../config/supabase.js';
 import { parsePagination, paginatedResult } from '../../../utils/pagination.js';
 import { checkPost } from '../../../services/nsfwFilter.js';
-import { invalidateFollowerFeeds, invalidateUserFeed } from '../../../services/feedCache.js';
+import { enrichPostsForViewer, invalidateFollowerFeeds, invalidateUserFeed } from '../../../services/feedCache.js';
 import { sendToUser } from '../../../services/notifications.js';
 import { signedUrlForPostImage } from '../../../services/postImageUrl.js';
 
@@ -109,19 +109,34 @@ export const postsService = {
             throw { statusCode: 404, message: 'Post not found.' };
         }
 
-        // Check if requesting user has liked this post
-        const { count: liked } = await supabase
-            .from('post_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', postId)
-            .eq('user_id', requestingUserId);
+        const pid = String(postId);
+
+        const [{ count: liked }, { count: likesTotal }, { count: commentsTotal }] = await Promise.all([
+            supabase
+                .from('post_likes')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', pid)
+                .eq('user_id', requestingUserId),
+            supabase
+                .from('post_likes')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', pid),
+            supabase
+                .from('post_comments')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', pid)
+                .is('deleted_at', null)
+                .eq('is_hidden', false),
+        ]);
 
         const signedUrl = signedUrlForPostImage(data.image_path);
 
-        return { 
-            ...data, 
+        return {
+            ...data,
             image_url: signedUrl,
-            viewer_has_liked: liked > 0 
+            viewer_has_liked: (liked ?? 0) > 0,
+            likes_count: likesTotal ?? 0,
+            comments_count: commentsTotal ?? 0,
         };
     },
 
@@ -167,7 +182,9 @@ export const postsService = {
             image_url: signedUrlForPostImage(post.image_path),
         }));
 
-        return paginatedResult(postsWithSignedUrls, count || 0, page, limit);
+        const enriched = await enrichPostsForViewer(requestingUserId, postsWithSignedUrls);
+
+        return paginatedResult(enriched, count || 0, page, limit);
     },
 
 

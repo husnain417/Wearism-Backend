@@ -9,7 +9,7 @@ export const authController = {
 
         return reply.status(201).send({
             success: true,
-            message: 'Account created. Please verify your email.',
+            message: 'Account created.',
             user: {
                 id: data.user?.id,
                 email: data.user?.email,

@@ -9,6 +9,17 @@ import {
 } from './campaigns.schema.js';
 
 export async function campaignsRoutes(fastify) {
+  // Public-ish listing for feed (auth required because app client is authenticated)
+  fastify.get('/active', {
+    preHandler: [authenticate],
+    schema: { tags: ['Marketplace'], summary: 'List active campaigns for feed' },
+  }, campaignsController.listActive);
+
+  fastify.get('/:id', {
+    preHandler: [authenticate],
+    schema: { tags: ['Marketplace'], summary: 'Get active campaign detail (for feed)' },
+  }, campaignsController.getActive);
+
   // Vendor CRUD
   fastify.post('/', {
     preHandler: [authenticate, requireVendor],
@@ -25,6 +36,13 @@ export async function campaignsRoutes(fastify) {
     preHandler: [authenticate, requireVendor],
     schema: { tags: ['Marketplace'], summary: 'Get a single own campaign (vendor only)' },
   }, campaignsController.getMine);
+
+  // Multipart cover upload (vendor only)
+  fastify.post('/:id/cover', {
+    preHandler: [authenticate, requireVendor],
+    schema: { tags: ['Marketplace'], summary: 'Upload campaign cover image (vendor only)' },
+    config: { rateLimit: { max: 120, timeWindow: '1 hour' } },
+  }, campaignsController.uploadCover);
 
   fastify.patch('/:id', {
     preHandler: [authenticate, requireVendor],

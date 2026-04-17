@@ -26,6 +26,11 @@ export async function vendorsRoutes(fastify) {
     preHandler: [authenticate, requireVendor],
   }, vendorsController.getDashboardStats);
 
+  fastify.get('/me/analytics', {
+    schema: { tags: ['Marketplace'], summary: 'Vendor analytics (orders + campaigns)' },
+    preHandler: [authenticate, requireVendor],
+  }, vendorsController.getAnalytics);
+
   fastify.get('/me/products', {
     schema: { tags: ['Marketplace'], summary: 'Get own vendor products (inventory)' },
     preHandler: [authenticate, requireVendor],

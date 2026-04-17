@@ -2,6 +2,13 @@ import { userService } from './user.service.js';
 import { supabase } from '../../config/supabase.js';
 
 export const userController = {
+    // GET /users/search?q=&limit=
+    async searchDirectory(request, reply) {
+        const { q, limit } = request.query;
+        const out = await userService.searchDirectory(q, limit);
+        return reply.send({ success: true, ...out });
+    },
+
     // GET /users/:id/profile — public summary for another user
     async getPublicProfile(request, reply) {
         const targetId = request.params.id;

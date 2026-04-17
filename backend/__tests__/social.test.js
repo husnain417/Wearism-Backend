@@ -1114,6 +1114,7 @@ describe('Phase 6 — Social Hub Endpoints', () => {
             });
 
             expect(mockFeedService.getTrendingFeed).toHaveBeenCalledWith(
+                USER_ID,
                 expect.objectContaining({ page: 3, limit: 5 }),
             );
         });

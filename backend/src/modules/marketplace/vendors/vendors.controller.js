@@ -27,6 +27,11 @@ export const vendorsController = {
     return reply.send({ success: true, ...stats });
   },
 
+  async getAnalytics(request, reply) {
+    const analytics = await vendorsService.getAnalytics(request.user.sub);
+    return reply.send({ success: true, analytics });
+  },
+
   // GET /vendors/me/products
   async getMyProducts(request, reply) {
     const products = await vendorsService.getMyProducts(request.user.sub);

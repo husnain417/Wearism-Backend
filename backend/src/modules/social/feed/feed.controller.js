@@ -11,7 +11,13 @@ export const feedController = {
 
     // GET /feed/trending
     async getTrendingFeed(request, reply) {
-        const result = await feedService.getTrendingFeed(request.query);
+        const result = await feedService.getTrendingFeed(request.user.sub, request.query);
+        return reply.send(result);
+    },
+
+    // GET /feed/explore — search grid (DB-scored public posts), not Redis trending
+    async getExploreFeed(request, reply) {
+        const result = await feedService.getExploreFeed(request.user.sub, request.query);
         return reply.send(result);
     },
 };

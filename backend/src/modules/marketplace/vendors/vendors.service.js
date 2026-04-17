@@ -92,6 +92,37 @@ export const vendorsService = {
     return { summary: vendor, orders_by_status: byStatus, recent_orders: recentOrders||[] };
   },
 
+  async getAnalytics(userId) {
+    const { data: vendor } = await supabase
+      .from('vendor_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+    if (!vendor) throw { statusCode: 404, message: 'Vendor profile not found.' };
+
+    const { data, error } = await supabase.rpc('vendor_analytics_data', {
+      p_vendor_id: vendor.id,
+    });
+    if (error) throw error;
+
+    const empty = {
+      overview: {
+        revenue_pkr: 0,
+        orders_count: 0,
+        campaign_impressions: 0,
+        campaign_clicks: 0,
+        campaign_opens: 0,
+        campaign_purchases: 0,
+        ctr: 0,
+        click_to_purchase_rate: 0,
+      },
+      products: [],
+      campaigns_by_type: [],
+    };
+
+    return data && typeof data === 'object' ? data : empty;
+  },
+
   async getMyProducts(userId) {
     const { data: vendor } = await supabase
       .from('vendor_profiles')

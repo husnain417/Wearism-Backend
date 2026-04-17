@@ -21,6 +21,7 @@ import { postsRoutes } from './modules/social/posts/posts.routes.js';
 import { commentsRoutes } from './modules/social/comments/comments.routes.js';
 import { followsRoutes } from './modules/social/follows/follows.routes.js';
 import { feedRoutes } from './modules/social/feed/feed.routes.js';
+import { storiesRoutes } from './modules/social/stories/stories.routes.js';
 import { vendorsRoutes }  from './modules/marketplace/vendors/vendors.routes.js';
 import { productsRoutes } from './modules/marketplace/products/products.routes.js';
 import { cartRoutes }     from './modules/marketplace/cart/cart.routes.js';
@@ -279,6 +280,7 @@ export async function buildApp() {
     await app.register(commentsRoutes, { prefix: '/posts/:postId/comments' });
     await app.register(followsRoutes, { prefix: '/follows' });
     await app.register(feedRoutes, { prefix: '/feed' });
+    await app.register(storiesRoutes, { prefix: '/stories' });
 
     // Marketplace
     await app.register(vendorsRoutes,  { prefix: '/vendors'  });

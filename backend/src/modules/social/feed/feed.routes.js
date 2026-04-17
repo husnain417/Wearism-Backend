@@ -24,4 +24,9 @@ export async function feedRoutes(fastify) {
         schema: { ...paginationSchema, tags: ['Feed'], summary: 'Trending feed (score-ranked, Redis-cached)' },
         config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
     }, feedController.getTrendingFeed);
+
+    fastify.get('/explore', {
+        schema: { ...paginationSchema, tags: ['Feed'], summary: 'Explore grid for search (DB-scored public posts)' },
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    }, feedController.getExploreFeed);
 }
