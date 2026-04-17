@@ -25,9 +25,13 @@ import { vendorsRoutes }  from './modules/marketplace/vendors/vendors.routes.js'
 import { productsRoutes } from './modules/marketplace/products/products.routes.js';
 import { cartRoutes }     from './modules/marketplace/cart/cart.routes.js';
 import { ordersRoutes }   from './modules/marketplace/orders/orders.routes.js';
+import { campaignsRoutes } from './modules/marketplace/campaigns/campaigns.routes.js';
 import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
+import { outfitPhotoRatingsRoutes } from './modules/outfit-photo-ratings/outfit-photo-ratings.routes.js';
 import { refreshTrendingCache } from './services/trendingScore.js';
 import { getRedisClient } from './config/redis.js';
+import { startWardrobeMaterializationWorker } from './workers/wardrobeMaterializationWorker.js';
+import { startOutfitPhotoRatingsWorker } from './workers/outfitPhotoRatingsWorker.js';
 import fastifyMultipart from '@fastify/multipart';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -268,6 +272,7 @@ export async function buildApp() {
     await app.register(wardrobeRoutes, { prefix: '/wardrobe' });
     await app.register(outfitRoutes, { prefix: '/wardrobe/outfits' });
     await app.register(recommendationsRoutes, { prefix: '/recommendations' });
+    await app.register(outfitPhotoRatingsRoutes, { prefix: '/outfit-photo-ratings' });
 
     // Social Hub
     await app.register(postsRoutes, { prefix: '/posts' });
@@ -280,6 +285,7 @@ export async function buildApp() {
     await app.register(productsRoutes, { prefix: '/products' });
     await app.register(cartRoutes,     { prefix: '/cart'     });
     await app.register(ordersRoutes,   { prefix: '/orders'   });
+    await app.register(campaignsRoutes, { prefix: '/campaigns' });
 
     // Notifications
     await app.register(notificationsRoutes, { prefix: '/notifications' });
@@ -288,6 +294,8 @@ export async function buildApp() {
     if (process.env.NODE_ENV !== 'test') {
         refreshTrendingCache(); // warm cache on startup
         setInterval(refreshTrendingCache, 15 * 60 * 1000);
+        startWardrobeMaterializationWorker(app.log);
+        startOutfitPhotoRatingsWorker(app.log);
     }
 
     return app;

@@ -23,7 +23,7 @@ export const cartService = {
   },
 
 
-  async addItem(userId, { product_id, quantity=1 }) {
+  async addItem(userId, { product_id, quantity=1, campaign_id }) {
     const { data: product } = await supabase.from('products')
       .select('id, stock_quantity, status, vendor_profiles!vendor_id(user_id)')
       .eq('id', product_id).eq('status','active').single();
@@ -35,7 +35,7 @@ export const cartService = {
       throw { statusCode:400, message:'Cannot add your own products to cart.' };
 
     const { data, error } = await supabase.from('cart_items')
-      .upsert({ user_id:userId, product_id, quantity },
+      .upsert({ user_id:userId, product_id, quantity, campaign_id: campaign_id || null },
                { onConflict:'user_id,product_id', ignoreDuplicates:false })
       .select().single();
 

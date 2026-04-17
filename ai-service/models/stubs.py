@@ -24,6 +24,12 @@ SLOT_MAP = {
     'accessories': 'accessories', 'bags': 'accessories', 'jewelry': 'accessories',
     'eyewear': 'accessories', 'hats': 'accessories', 'scarves': 'accessories',
     'belts': 'accessories', 'shoes': 'accessories',
+    # Support singular labels from Gemma/other models
+    'top': 'upperwear',
+    'bottom': 'lowerwear',
+    'dress': 'lowerwear',
+    'shoe': 'accessories',
+    'accessory': 'accessories',
 }
 
 ACCESSORY_MAINS = {'accessories','bags','jewelry','eyewear','hats','scarves','belts'}

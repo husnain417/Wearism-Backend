@@ -7,6 +7,8 @@ export const addToCartSchema = {
     properties: {
       product_id: { type: 'string', format: 'uuid' },
       quantity:   { type: 'integer', minimum: 1, maximum: 99, default: 1 },
+      // Optional campaign attribution (passed when user clicks product from a campaign)
+      campaign_id:{ type: 'string', format: 'uuid' },
     },
     additionalProperties: false,
   },

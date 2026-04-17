@@ -4,6 +4,39 @@ from celery_app import celery
 from models.stubs import classify_clothing_model
 from db.supabase_client import update_wardrobe_item, update_ai_result
 
+SLOT_BY_CATEGORY = {
+    # Plural taxonomy
+    'tops': 'upperwear', 'activewear': 'upperwear', 'intimates': 'upperwear',
+    'outerwear': 'outerwear',
+    'bottoms': 'lowerwear', 'dresses': 'lowerwear',
+    'accessories': 'accessories', 'bags': 'accessories', 'jewelry': 'accessories',
+    'eyewear': 'accessories', 'hats': 'accessories', 'scarves': 'accessories',
+    'belts': 'accessories', 'shoes': 'accessories',
+    # Singular labels (Gemma-style)
+    'top': 'upperwear',
+    'bottom': 'lowerwear',
+    'dress': 'lowerwear',
+    'shoe': 'accessories',
+    'accessory': 'accessories',
+}
+
+def normalize_slot(result) -> str:
+    """
+    Make slot assignment resilient to model taxonomy differences.
+    Priority:
+      1) model-provided wardrobe_slot (if valid)
+      2) derive from fashionclip_main_category/category aliases
+      3) accessories fallback
+    """
+    valid = {'upperwear', 'outerwear', 'lowerwear', 'accessories'}
+    if getattr(result, 'wardrobe_slot', None) in valid:
+        return result.wardrobe_slot
+
+    main_cat = str(getattr(result, 'fashionclip_main_category', '') or '').strip().lower()
+    if main_cat:
+        return SLOT_BY_CATEGORY.get(main_cat, 'accessories')
+    return 'accessories'
+
 
 @celery.task(
     bind=True,
@@ -30,7 +63,7 @@ def classify_clothing(self, item_id: str, image_url: str, ai_result_id: str):
 
         # Build the wardrobe item update payload
         item_updates = {
-            'wardrobe_slot':              result.wardrobe_slot,
+            'wardrobe_slot':              normalize_slot(result),
             'fashionclip_main_category':  result.fashionclip_main_category,
             'fashionclip_sub_category':   result.fashionclip_sub_category,
             'fashionclip_attributes':     result.fashionclip_attributes,

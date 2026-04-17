@@ -52,6 +52,11 @@ export const wardrobeService = {
                 user_id: userId,
                 image_url: signedData.signedUrl,
                 image_path,
+                source_image_url: signedData.signedUrl,
+                source_image_path: image_path,
+                source_upload_item_id: item_id,
+                segment_index: 0,
+                is_source_upload: true,
                 name: name || null,
                 brand: brand || null,
                 condition: condition || 'good',
@@ -121,6 +126,11 @@ export const wardrobeService = {
                 user_id: userId,
                 image_url: signedData.signedUrl,
                 image_path,
+                source_image_url: signedData.signedUrl,
+                source_image_path: image_path,
+                source_upload_item_id: item_id,
+                segment_index: 0,
+                is_source_upload: true,
                 condition: 'good',
             });
         }

@@ -1,6 +1,7 @@
 import { wardrobeService } from './wardrobe.service.js';
 import { supabase } from '../../config/supabase.js';
 import { aiQueue } from '../../services/aiQueue.js';
+import { materializeCompletedClassification } from '../../services/wardrobeMaterializer.js';
 
 export const wardrobeController = {
     // POST /wardrobe/items — accepts multipart/form-data
@@ -37,6 +38,8 @@ export const wardrobeController = {
                         wardrobe_item_id: item.id,
                         task_type: 'clothing_classification',
                         status: 'pending',
+                        materialized_at: null,
+                        materialization_error: null,
                     })
                     .select('id')
                     .single();
@@ -135,6 +138,8 @@ export const wardrobeController = {
                             wardrobe_item_id: item.id,
                             task_type: 'clothing_classification',
                             status: 'pending',
+                            materialized_at: null,
+                            materialization_error: null,
                         })
                         .select('id')
                         .single();
@@ -218,15 +223,127 @@ export const wardrobeController = {
     // GET /wardrobe/items/:id/ai-status
     // Mobile polls this to check when classification is done
     async getAiStatus(request, reply) {
-        const { data } = await supabase
+        const { data: item } = await supabase
+            .from('wardrobe_items')
+            .select('id, user_id, source_ai_result_id, source_upload_item_id')
+            .eq('id', request.params.id)
+            .eq('user_id', request.user.sub)
+            .is('deleted_at', null)
+            .single();
+
+        if (!item) {
+            return reply.send({ success: true, ai: { status: 'not_found' } });
+        }
+
+        let data = null;
+
+        // 1) Normal case: ai_result directly linked to this wardrobe row.
+        const direct = await supabase
             .from('ai_results')
-            .select('status, result, error_message, processing_time_ms')
-            .eq('wardrobe_item_id', request.params.id)
+            .select('id, user_id, task_type, wardrobe_item_id, status, result, error_message, processing_time_ms, materialized_at')
+            .eq('wardrobe_item_id', item.id)
             .eq('task_type', 'clothing_classification')
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
+
+        data = direct.data || null;
+
+        // 2) Materialized segment rows point back to the source ai result.
+        if (!data && item.source_ai_result_id) {
+            const bySourceAiResult = await supabase
+                .from('ai_results')
+                .select('id, user_id, task_type, wardrobe_item_id, status, result, error_message, processing_time_ms, materialized_at')
+                .eq('id', item.source_ai_result_id)
+                .eq('task_type', 'clothing_classification')
+                .maybeSingle();
+
+            data = bySourceAiResult.data || null;
+        }
+
+        // 3) Fallback to the source upload row, useful if the row was materialized before source_ai_result_id existed.
+        if (!data && item.source_upload_item_id && item.source_upload_item_id !== item.id) {
+            const bySourceUpload = await supabase
+                .from('ai_results')
+                .select('id, user_id, task_type, wardrobe_item_id, status, result, error_message, processing_time_ms, materialized_at')
+                .eq('wardrobe_item_id', item.source_upload_item_id)
+                .eq('task_type', 'clothing_classification')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            data = bySourceUpload.data || null;
+        }
+
+        if (data?.status === 'completed' && !data?.materialized_at) {
+            try {
+                await materializeCompletedClassification(data, request.log);
+                const refreshed = await supabase
+                    .from('ai_results')
+                    .select('id, user_id, task_type, wardrobe_item_id, status, result, error_message, processing_time_ms, materialized_at')
+                    .eq('id', data.id)
+                    .single();
+                return reply.send({ success: true, ai: refreshed.data || data });
+            } catch (err) {
+                request.log.error({ err, aiResultId: data.id }, 'Opportunistic wardrobe materialization failed');
+            }
+        }
 
         return reply.send({ success: true, ai: data || { status: 'not_found' } });
+    },
+
+    // POST /wardrobe/items/:id/retry-classification
+    // Used by mobile UI to re-trigger the classification job if it fails.
+    async retryClassification(request, reply) {
+        const itemId = request.params.id;
+
+        const { data: wardrobeItem, error: itemError } = await supabase
+            .from('wardrobe_items')
+            .select('id, image_url, source_upload_item_id, source_image_url')
+            .eq('id', itemId)
+            .eq('user_id', request.user.sub)
+            .is('deleted_at', null)
+            .single();
+
+        if (itemError || !wardrobeItem) {
+            return reply.status(404).send({ success: false, message: 'Item not found.' });
+        }
+
+        const targetItemId = wardrobeItem.source_upload_item_id || wardrobeItem.id;
+        const targetImageUrl = wardrobeItem.source_image_url || wardrobeItem.image_url;
+
+        const { data: aiRow, error: aiError } = await supabase
+            .from('ai_results')
+            .insert({
+                user_id: request.user.sub,
+                wardrobe_item_id: targetItemId,
+                task_type: 'clothing_classification',
+                status: 'pending',
+                materialized_at: null,
+                materialization_error: null,
+            })
+            .select('id')
+            .single();
+
+        if (aiError || !aiRow) {
+            return reply.status(500).send({ success: false, message: 'Failed to create ai_results row.' });
+        }
+
+        try {
+            await aiQueue.queueClothingClassification({
+                itemId: targetItemId,
+                imageUrl: targetImageUrl,
+                aiResultId: aiRow.id,
+            });
+        } catch (err) {
+            request.log.error({ err }, 'Retry classification queueing failed');
+            return reply.status(503).send({ success: false, message: 'Retry queueing failed.' });
+        }
+
+        return reply.send({
+            success: true,
+            ai_status: 'pending',
+            ai_result_id: aiRow.id,
+        });
     },
 };

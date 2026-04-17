@@ -100,6 +100,32 @@ export const aiQueue = {
         });
     },
 
+    async queueOutfitPhotoRating({
+        ratingId,
+        userId,
+        imageUrl,
+        aiResultId,
+        gender,
+        occasion,
+        weather,
+        season,
+        stylePreference,
+        mode,
+    }) {
+        await dispatchToPythonBroker('/rate/outfit-photo', {
+            rating_id: ratingId,
+            user_id: userId,
+            image_url: imageUrl,
+            ai_result_id: aiResultId,
+            gender: gender || 'unspecified',
+            occasion: occasion || 'casual',
+            weather: weather || 'mild',
+            season: season || 'spring',
+            style_preference: stylePreference || 'any',
+            mode: mode || 'heavyweight',
+        });
+    },
+
     async queueRecommendationRating({
         recommendationId, items, aiResultId, userId,
         season, occasion, weather

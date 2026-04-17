@@ -44,4 +44,10 @@ export async function wardrobeRoutes(fastify) {
         schema: { tags: ['AI'], summary: 'Get AI classification status for item' },
         preHandler: [authenticate, validateUUID],
     }, wardrobeController.getAiStatus);
+
+    // Retry AI classification for a specific wardrobe item (used by mobile UI).
+    fastify.post('/items/:id/retry-classification', {
+        schema: { tags: ['AI'], summary: 'Retry AI classification for item' },
+        preHandler: [authenticate, validateUUID],
+    }, wardrobeController.retryClassification);
 }

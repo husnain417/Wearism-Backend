@@ -16,7 +16,8 @@ export const ordersService = {
   async placeOrder(userId, { delivery_address, delivery_city, delivery_phone, delivery_notes }) {
     const { data: cartItems } = await supabase.from('cart_items')
       .select(`quantity, products!product_id(
-        id, name, price, primary_image_url, stock_quantity, status, vendor_id)`)
+        id, name, price, primary_image_url, stock_quantity, status, vendor_id),
+        campaign_id`)
       .eq('user_id', userId);
 
     if (!cartItems?.length) throw { statusCode:400, message:'Cart is empty.' };
@@ -40,12 +41,16 @@ export const ordersService = {
     for (const [vendorId, items] of Object.entries(byVendor)) {
       const total = Number(items.reduce((s,i) => s+(i.products.price*i.quantity), 0).toFixed(2));
 
+      // Attribution: last-touch campaign within this vendor's split (if any)
+      const firstCampaignId = (items.find((i) => i.campaign_id)?.campaign_id) || null;
+
       const { data: order, error: oErr } = await supabase.from('orders').insert({
         buyer_id: userId, vendor_id: vendorId,
         delivery_address, delivery_city, delivery_phone,
         delivery_notes: delivery_notes||null,
         subtotal: total, total_amount: total,
         payment_method: 'cash_on_delivery', status: 'pending',
+        campaign_id: firstCampaignId,
       }).select().single();
 
       if (oErr) throw oErr;
@@ -59,6 +64,7 @@ export const ordersService = {
           unit_price:    i.products.price,
           quantity:      i.quantity,
           line_total:    Number((i.products.price * i.quantity).toFixed(2)),
+          campaign_id:   i.campaign_id || null,
         }))
       );
 
@@ -102,7 +108,8 @@ export const ordersService = {
     const { page, limit, from } = parsePagination(query);
     const { status } = query;
     let q = supabase.from('orders')
-      .select(`*, order_items(*), profiles!buyer_id(username, avatar_url)`,{count:'exact'})
+      // `profiles` table stores `full_name` (not `username`) per `supabase/migrations/DB/001_create_profiles.sql`
+      .select(`*, order_items(*), profiles!buyer_id(id, full_name, avatar_url)`,{count:'exact'})
       .eq('vendor_id', vendorId).order('created_at',{ascending:false})
       .range(from, from + limit - 1);
     if (status) q = q.eq('status', status);
